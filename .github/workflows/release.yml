@@ -103,11 +103,17 @@ jobs:
           # 3. Copiar el contenido del bundle de Flutter al AppDir
           # El ejecutable va a bin/
           cp build/linux/x64/release/bundle/${{ env.APP_NAME }} AppDir/usr/bin/
-          # Las librerías .so van a lib/ (importante para que linuxdeploy las procese bien)
+          # Las librerías .so van a lib/
           cp build/linux/x64/release/bundle/lib/*.so AppDir/usr/lib/
           # Los datos de Flutter van junto al binario
           cp -r build/linux/x64/release/bundle/data AppDir/usr/bin/
           
+          # Solución para SQLite: crear enlace simbólico si existe libsqlite3.so.0
+          # linuxdeploy desplegará libsqlite3.so.0 desde el sistema al AppDir
+          # Nosotros creamos el link para que Dart lo encuentre como libsqlite3.so
+          mkdir -p AppDir/usr/lib
+          ln -s libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so || true
+
           # 4. Copiar archivos de escritorio e iconos
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png
