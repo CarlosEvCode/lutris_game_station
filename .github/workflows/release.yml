@@ -28,17 +28,23 @@ jobs:
           path: .
 
   # -------------------------------------------------------------------
-  # JOB 2: CONSTRUIR Y SUBIR APPIMAGE (LINUX)
+  # JOB 2: CONSTRUIR Y SUBIR APPIMAGE (Contenedor Ubuntu 20.04)
   # -------------------------------------------------------------------
   build_linux:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     name: Build & Release AppImage
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    container: ubuntu:20.04
     env:
       APP_NAME: lutris_game_station
 
     steps:
+      - name: Preparar entorno del contenedor
+        run: |
+          apt-get update
+          apt-get install -y curl git unzip xz-utils libglu1-mesa ca-certificates sudo
+
       - name: Checkout del código
         uses: actions/checkout@v4
         with:
@@ -46,8 +52,7 @@ jobs:
 
       - name: Instalar dependencias de compilación Linux
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get install -y \
             clang cmake ninja-build \
             libgtk-3-dev libblkid-dev liblzma-dev \
             libgcrypt20-dev libsqlite3-dev pkg-config \
@@ -74,6 +79,7 @@ jobs:
 
       - name: Commit de actualización de versión
         run: |
+          git config --global --add safe.directory /__w/lutris_game_station/lutris_game_station
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add pubspec.yaml
@@ -86,7 +92,7 @@ jobs:
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
 
-      - name: Generar AppImage (Estrategia Maestra V4)
+      - name: Generar AppImage (Estrategia Maestra V4 + Container)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
@@ -97,11 +103,10 @@ jobs:
           # 2. Preparar la estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar TODO el bundle de Flutter a usr/bin (ESTO ES CRÍTICO)
-          # Esto mantiene la estructura bin/lib/libapp.so que Flutter necesita
+          # 3. Copiar bundle de Flutter
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # 4. SOLUCIÓN SQLITE: Copiar la librería del sistema DIRECTO al bundle de la app
+          # 4. SOLUCIÓN SQLITE: Copiar librería del contenedor
           SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
           if [ -z "$SQLITE_SRC" ]; then
             for p in /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/libsqlite3.so.0 /lib/x86_64-linux-gnu/libsqlite3.so.0; do
@@ -110,19 +115,17 @@ jobs:
           fi
           if [ -n "$SQLITE_SRC" ]; then
             cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
-            echo "sqlite copiada a usr/bin/lib/libsqlite3.so"
           fi
 
-          # 5. Fijar RPATH del binario para que busque en su propia carpeta lib/
+          # 5. Fijar RPATH
           BINARY="AppDir/usr/bin/${{ env.APP_NAME }}"
           patchelf --set-rpath '$ORIGIN/lib' "$BINARY"
-          echo "RPATH fijado a \$ORIGIN/lib en $BINARY"
 
-          # 6. Copiar .desktop e icono (redimensionado)
+          # 6. Desktop e Icono
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
 
-          # 7. AppRun minimalista pero efectivo
+          # 7. AppRun
           cat > AppDir/AppRun <<'APP_RUN'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
