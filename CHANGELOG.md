@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.9](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.8...v1.3.9) (2026-03-15)
+
+
+### Bug Fixes
+
+* añadir jq al contenedor para compatibilidad con flutter-action ([89745c3](https://github.com/CarlosEvCode/lutris_game_station/commit/89745c3d1276073622bed6accaf2c89755e787da))
+
 ## [1.3.8](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.7...v1.3.8) (2026-03-15)
 
 
