@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.1...v1.1.2) (2026-03-15)
+
+
+### Bug Fixes
+
+* corregir indentación YAML en el workflow de release ([8118f12](https://github.com/CarlosEvCode/lutris_game_station/commit/8118f12467614bbfee2b4c4b074f451a03a622cc))
+* corregir URL de descarga del plugin y nombre de ejecutable para linuxdeploy ([611df07](https://github.com/CarlosEvCode/lutris_game_station/commit/611df07e9762e4e95042b3cc4361919a094f546d))
+
 ## [1.1.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.0...v1.1.1) (2026-03-15)
 
 
