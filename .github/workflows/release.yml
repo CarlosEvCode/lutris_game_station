@@ -25,6 +25,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: simple
+          path: .
 
   # -------------------------------------------------------------------
   # JOB 2: CONSTRUIR Y SUBIR APPIMAGE (LINUX)
