@@ -83,31 +83,32 @@ jobs:
 
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
+- name: Preparar AppImage (Descargar linuxdeploy)
+  run: |
+    curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+    chmod +x linuxdeploy-x86_64.AppImage
 
-      - name: Preparar AppImage (Descargar linuxdeploy)
-        run: |
-          curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          
-          curl -L -o linuxdeploy-plugin-flutter.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-flutter/main/linuxdeploy-plugin-flutter.sh
-          chmod +x linuxdeploy-plugin-flutter.sh
+    curl -L -o linuxdeploy-plugin-flutter https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-flutter/master/linuxdeploy-plugin-flutter.sh
+    chmod +x linuxdeploy-plugin-flutter
 
-      - name: Generar AppImage
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
-          OUTPUT: ${{ env.APP_NAME }}-x86_64.AppImage
-        run: |
-          mkdir -p ./plugins
-          mv linuxdeploy-plugin-flutter.sh ./plugins/linuxdeploy-plugin-flutter
-          export PATH=$PATH:$(pwd)/plugins
-          
-          ./linuxdeploy-x86_64.AppImage \
-            --appdir AppDir \
-            --executable build/linux/x64/release/bundle/${{ env.APP_NAME }} \
-            --desktop-file linux/${{ env.APP_NAME }}.desktop \
-            --icon-file linux/${{ env.APP_NAME }}.png \
-            --plugin flutter \
-            --output appimage
+- name: Generar AppImage
+  env:
+    APPIMAGE_EXTRACT_AND_RUN: 1
+  run: |
+    # El plugin de flutter de linuxdeploy necesita estar en el PATH
+    mkdir -p ./plugins
+    mv linuxdeploy-plugin-flutter ./plugins/
+    export PATH=$PATH:$(pwd)/plugins
+
+    # Ejecutar linuxdeploy
+    ./linuxdeploy-x86_64.AppImage \
+      --appdir AppDir \
+      --executable build/linux/x64/release/bundle/${{ env.APP_NAME }} \
+      --desktop-file linux/${{ env.APP_NAME }}.desktop \
+      --icon-file linux/${{ env.APP_NAME }}.png \
+      --plugin flutter \
+      --output appimage
+
 
       - name: Renombrar AppImage para incluir versión
         run: |
