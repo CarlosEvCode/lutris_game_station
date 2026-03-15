@@ -7,6 +7,8 @@ class ConfigManager {
   static final String _configDirPath = p.join(_homeDir, '.config', 'lutris_game_station');
   static final String _configFilePath = p.join(_configDirPath, 'config.json');
 
+  static String get configFilePath => _configFilePath;
+
   static Future<void> _ensureDirectoryExists() async {
     final dir = Directory(_configDirPath);
     if (!dir.existsSync()) {

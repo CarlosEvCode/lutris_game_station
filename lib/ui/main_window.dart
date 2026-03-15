@@ -162,7 +162,10 @@ class _MainWindowState extends State<MainWindow> {
                 await ConfigManager.saveApiKey(newKey);
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('API Key guardada permanentemente.')),
+                  SnackBar(
+                    content: Text('✅ API Key guardada en: ${ConfigManager.configFilePath}'),
+                    duration: const Duration(seconds: 4),
+                  ),
                 );
               },
               child: const Text('Guardar'),
