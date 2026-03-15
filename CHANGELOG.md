@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.4...v1.3.5) (2026-03-15)
+
+
+### Bug Fixes
+
+* implementar estrategia maestra v4 respetando el bundle nativo de Flutter para evitar errores de AOT ELF path ([e736c0e](https://github.com/CarlosEvCode/lutris_game_station/commit/e736c0eb1869c4c78e0d786337ff43c2c9505343))
+
 ## [1.3.4](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.3...v1.3.4) (2026-03-15)
 
 
