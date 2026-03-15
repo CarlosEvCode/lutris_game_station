@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.0...v1.1.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* corregir descarga del plugin de Flutter para linuxdeploy usando curl y rama main ([c992d41](https://github.com/CarlosEvCode/lutris_game_station/commit/c992d419a9f53a12e782baf29e373cd98ec60826))
+
 ## [1.1.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.0.0...v1.1.0) (2026-03-15)
 
 
