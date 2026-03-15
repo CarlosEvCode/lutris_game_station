@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.8](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.7...v1.3.8) (2026-03-15)
+
+
+### Bug Fixes
+
+* establecer DEBIAN_FRONTEND=noninteractive para evitar bloqueos en el contenedor ([18ced8b](https://github.com/CarlosEvCode/lutris_game_station/commit/18ced8b7f0a126e1f6e117de5b93458af9ea6dd6))
+
 ## [1.3.7](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.6...v1.3.7) (2026-03-15)
 
 
