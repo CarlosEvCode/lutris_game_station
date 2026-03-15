@@ -100,25 +100,25 @@ jobs:
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar TODO el bundle de Flutter a usr/bin (Mantiene estructura bin/lib/ y bin/data/)
+          # 3. Copiar TODO el bundle de Flutter a usr/bin
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
           
-          # 4. Copiar archivos de escritorio e iconos
+          # 4. SOLUCIÓN DEFINITIVA SQLITE: Copiar la librería del sistema al bundle de la app
+          # Buscamos la ruta real de libsqlite3.so.0 y la copiamos con el nombre que espera Dart
+          SQLITE_PATH=$(ldconfig -p | grep libsqlite3.so.0 | head -n 1 | awk '{print $4}')
+          cp "$SQLITE_PATH" AppDir/usr/bin/lib/libsqlite3.so
+          echo "Copiada librería sqlite desde $SQLITE_PATH a AppDir/usr/bin/lib/libsqlite3.so"
+
+          # 5. Copiar archivos de escritorio e iconos
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png
 
-          # 5. Ejecutar linuxdeploy
+          # 6. Ejecutar linuxdeploy
+          # Usamos --deploy-deps-only para que no intente strip en cosas que ya están optimizadas
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --executable AppDir/usr/bin/${{ env.APP_NAME }} \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
             --output appimage
-
-          # 6. Solución SQLite: Crear enlace simbólico DENTRO del AppDir ya generado (en usr/lib)
-          # Esto asegura que libsqlite3.so -> libsqlite3.so.0 funcione para Dart
-          ln -sf libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so || true
-
-          # 7. Re-empaquetar para incluir el link si linuxdeploy no lo hizo (opcional pero seguro)
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
       - name: Renombrar AppImage para incluir versión
         run: |
