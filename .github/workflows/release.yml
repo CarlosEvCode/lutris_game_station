@@ -86,10 +86,10 @@ jobs:
 
       - name: Preparar AppImage (Descargar linuxdeploy)
         run: |
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
           
-          wget https://github.com/linuxdeploy/linuxdeploy-plugin-flutter/raw/master/linuxdeploy-plugin-flutter.sh
+          curl -L -o linuxdeploy-plugin-flutter.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-flutter/main/linuxdeploy-plugin-flutter.sh
           chmod +x linuxdeploy-plugin-flutter.sh
 
       - name: Generar AppImage
