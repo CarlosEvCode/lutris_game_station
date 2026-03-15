@@ -38,6 +38,7 @@ jobs:
     container: ubuntu:20.04
     env:
       APP_NAME: lutris_game_station
+      DEBIAN_FRONTEND: noninteractive
 
     steps:
       - name: Preparar entorno del contenedor
