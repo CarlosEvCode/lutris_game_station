@@ -26,7 +26,7 @@ class PlatformRegistry {
       platformId: 'ps1',
       platformName: 'Sony PlayStation',
       runner: 'duckstation',
-      extensions: ['.cue', '.chd', '.iso', '.m3u'],
+      extensions: ['.cue', '.chd', '.pbp'],
     );
     _platforms['ps2'] = const PlatformInfo(
       platformId: 'ps2',

@@ -19,6 +19,7 @@ class _MainWindowState extends State<MainWindow> {
   Map<String, String?>? _lutrisPaths;
   
   PlatformInfo? _selectedPlatform;
+  List<String> _selectedExtensions = [];
   String _romFolder = '';
   String _apiKey = '';
   
@@ -37,8 +38,18 @@ class _MainWindowState extends State<MainWindow> {
     _detectLutris();
     final platforms = PlatformRegistry.getAllPlatforms();
     if (platforms.isNotEmpty) {
-      _selectedPlatform = platforms.first;
+      _onPlatformChanged(platforms.first);
     }
+  }
+
+  void _onPlatformChanged(PlatformInfo? val) {
+    setState(() {
+      _selectedPlatform = val;
+      if (val != null) {
+        // Inicializamos con todas las extensiones por defecto
+        _selectedExtensions = List.from(val.extensions);
+      }
+    });
   }
 
   void _detectLutris() {
@@ -162,6 +173,10 @@ class _MainWindowState extends State<MainWindow> {
       _log("❌ Selecciona una carpeta de ROMs.");
       return;
     }
+    if ((action == 'inject' || action == 'full') && _selectedExtensions.isEmpty) {
+      _log("❌ Debes seleccionar al menos una extensión para inyectar.");
+      return;
+    }
     if ((action == 'metadata' || action == 'full') && _apiKey.isEmpty) {
       _log("❌ Configura la API Key de SteamGridDB.");
       _showConfigDialog();
@@ -179,6 +194,7 @@ class _MainWindowState extends State<MainWindow> {
           lutrisPaths: _lutrisPaths!,
           platformKey: _selectedPlatform!.platformId,
           romFolder: _romFolder,
+          customExtensions: _selectedExtensions, // Pasamos las extensiones filtradas
           progressCallback: (msg, prog) {
             _log(msg, prog);
           },
@@ -281,9 +297,7 @@ class _MainWindowState extends State<MainWindow> {
                 value: p,
                 child: Text(p.platformName),
               )).toList(),
-              onChanged: _isProcessing ? null : (val) {
-                setState(() { _selectedPlatform = val; });
-              },
+              onChanged: _isProcessing ? null : _onPlatformChanged,
               decoration: InputDecoration(
                 filled: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -293,11 +307,12 @@ class _MainWindowState extends State<MainWindow> {
           ),
           const SizedBox(height: 16),
           
-          // Step 2: ROMs Folder
+          // Step 2: ROMs Folder & Extensions
           _buildStepCard(
-            title: '2. Ubicación de ROMs',
+            title: '2. Ubicación y Filtros de ROMs',
             icon: Icons.folder,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
@@ -324,6 +339,32 @@ class _MainWindowState extends State<MainWindow> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                const Text('Extensiones Permitidas:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                if (_selectedPlatform != null)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 0,
+                    children: _selectedPlatform!.extensions.map((ext) {
+                      final isSelected = _selectedExtensions.contains(ext);
+                      return FilterChip(
+                        label: Text(ext, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                        selected: isSelected,
+                        onSelected: _isProcessing ? null : (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedExtensions.add(ext);
+                            } else {
+                              _selectedExtensions.remove(ext);
+                            }
+                          });
+                        },
+                        selectedColor: theme.colorScheme.primary.withOpacity(0.2),
+                        checkmarkColor: theme.colorScheme.primary,
+                      );
+                    }).toList(),
+                  ),
                 const SizedBox(height: 8),
                 SwitchListTile(
                   title: const Text('Limpiar juegos existentes', style: TextStyle(fontSize: 14)),

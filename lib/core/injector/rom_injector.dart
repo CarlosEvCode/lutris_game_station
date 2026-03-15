@@ -124,6 +124,7 @@ system:
     int count = 0;
     List<String> errors = [];
 
+    // Obtener archivos de la carpeta
     final files = folder.listSync().whereType<File>().toList();
     final romFiles = files.where((f) {
       final ext = p.extension(f.path).toLowerCase();
@@ -132,22 +133,45 @@ system:
 
     final totalFiles = romFiles.length;
     if (totalFiles == 0) {
-      _log("⚠️ No se encontraron archivos con extensiones ${extensions.join(', ')}");
+      _log("⚠️ No se encontraron archivos con las extensiones seleccionadas.");
       db.dispose();
       return;
     }
 
-    _log("🚀 Inyectando $totalFiles juegos desde: $romFolder");
+    // Set para evitar duplicados en la misma sesión (ej: Game.chd y Game.pbp)
+    Set<String> processedSlugs = {};
+    
+    // Obtener juegos existentes en DB para evitar duplicados si cleanOld es false
+    Set<String> existingSlugs = {};
+    if (!cleanOld) {
+      final rows = db.select("SELECT slug FROM games WHERE runner = ?", [runner]);
+      for (final row in rows) {
+        existingSlugs.add(row['slug'] as String);
+      }
+    }
+
+    _log("🚀 Inyectando juegos desde: $romFolder");
 
     for (int i = 0; i < romFiles.length; i++) {
       final f = romFiles[i];
-      final filename = p.basename(f.path);
       final gameSlug = p.basenameWithoutExtension(f.path);
       final gameName = gameSlug;
       final fullRomPath = f.path;
 
-      final uniqueTime = currentTime + count;
+      // 1. Evitar duplicados de formato en la misma carpeta
+      if (processedSlugs.contains(gameSlug)) {
+        _log("⏩ Saltando formato duplicado: $gameSlug (${p.extension(f.path)})");
+        continue;
+      }
+      processedSlugs.add(gameSlug);
 
+      // 2. Evitar duplicados con juegos ya inyectados en Lutris (si no se limpió antes)
+      if (!cleanOld && existingSlugs.contains(gameSlug)) {
+        _log("⏩ Juego ya existe en Lutris: $gameSlug");
+        continue;
+      }
+
+      final uniqueTime = currentTime + count;
       final configId = _createLutrisYaml(gameSlug, fullRomPath, uniqueTime, specialConfig: specialConfig);
 
       try {
@@ -172,7 +196,7 @@ system:
 
     db.dispose();
 
-    _log("🎉 ¡Inyección completa! $count/$totalFiles juegos agregados.", 1.0);
+    _log("🎉 ¡Inyección completa! $count juegos nuevos agregados.", 1.0);
 
     if (errors.isNotEmpty) {
       _log("Se encontraron ${errors.length} errores.");
