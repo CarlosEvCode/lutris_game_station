@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.2...v1.4.3) (2026-03-15)
+
+
+### Bug Fixes
+
+* integrar plugin GTK y configurar variables de entorno para cargadores de imágenes y temas en AppImage ([ba4cd59](https://github.com/CarlosEvCode/lutris_game_station/commit/ba4cd59f8f61de36dc9dc267803e139651e031d4))
+
 ## [1.4.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.1...v1.4.2) (2026-03-15)
 
 
