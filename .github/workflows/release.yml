@@ -93,34 +93,28 @@ jobs:
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
 
-      - name: Generar AppImage (Estrategia Maestra V5)
+      - name: Generar AppImage (Estrategia Maestra V6 - Control Total)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
-          # 1. Descargar linuxdeploy y el runtime manualmente para evitar errores 502
+          # 1. Descargar herramientas necesarias
           curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          
+          curl -L -o appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
+          chmod +x linuxdeploy-x86_64.AppImage appimagetool-x86_64.AppImage
 
           # 2. Preparar la estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar TODO el bundle de Flutter a usr/bin (Mantiene bin/lib/libapp.so)
+          # 3. Copiar TODO el bundle de Flutter a usr/bin
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # 4. SOLUCIÓN SQLITE: Copiar librería del contenedor al bundle
+          # 4. Inyectar SQLite en la carpeta de librerías del bundle
           SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
-          if [ -z "$SQLITE_SRC" ]; then
-            for p in /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/libsqlite3.so.0 /lib/x86_64-linux-gnu/libsqlite3.so.0; do
-              [ -f "$p" ] && { SQLITE_SRC="$p"; break; }
-            done
-          fi
-          if [ -n "$SQLITE_SRC" ]; then
-            cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
-          fi
+          [ -z "$SQLITE_SRC" ] && SQLITE_SRC="/usr/lib/x86_64-linux-gnu/libsqlite3.so.0"
+          cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
 
-          # 5. Fijar RPATH para que el binario busque en su carpeta lib/ nativa de Flutter
+          # 5. Fijar RPATH para que el binario busque sus librerías en ./lib/
           BINARY="AppDir/usr/bin/${{ env.APP_NAME }}"
           patchelf --set-rpath '$ORIGIN/lib' "$BINARY"
 
@@ -128,7 +122,7 @@ jobs:
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
 
-          # 7. AppRun
+          # 7. AppRun (Garante de rutas)
           cat > AppDir/AppRun <<'APP_RUN'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
@@ -137,25 +131,22 @@ jobs:
           APP_RUN
           chmod +x AppDir/AppRun
 
-          # 8. Ejecutar linuxdeploy informando la ruta de las librerías de Flutter y usando el runtime local
+          # 8. Usar linuxdeploy para recolectar dependencias del SISTEMA (GTK, etc)
+          # Seteamos LD_LIBRARY_PATH para que linuxdeploy encuentre los plugins de Flutter
           export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --executable "$BINARY" \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
-            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
-            --runtime-file runtime-x86_64 \
-            --output appimage
+            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png
 
-      - name: Renombrar AppImage para incluir versión
-        run: |
-          GENERATED_FILE=$(ls *.AppImage | grep -v "linuxdeploy")
-          mv "$GENERATED_FILE" "${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage"
+          # 9. Crear el AppImage final usando appimagetool directamente (Manual y Seguro)
+          ./appimagetool-x86_64.AppImage --runtime-file runtime-x86_64 AppDir "${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage"
 
       - name: Publicar Release en GitHub
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
-            ${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage
+            *.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
