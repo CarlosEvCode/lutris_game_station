@@ -93,26 +93,24 @@ jobs:
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
 
-      - name: Generar AppImage (Estrategia Maestra V7 - GTK Integration)
+      - name: Generar AppImage (Estrategia Maestra V8 - Pulido Final)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
-          # 1. Descargar herramientas necesarias
+          # 1. Descargar herramientas
           curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          # URL corregida para el plugin GTK
           curl -L -o linuxdeploy-plugin-gtk.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           curl -L -o appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
-          chmod +x *.AppImage
-          chmod +x linuxdeploy-plugin-gtk.sh
+          chmod +x *.AppImage *.sh
 
-          # 2. Preparar la estructura AppDir
+          # 2. Estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
 
           # 3. Copiar bundle de Flutter
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # 4. SOLUCIÓN SQLITE: Copiar al bundle
+          # 4. SOLUCIÓN SQLITE: Inyectar en lib/
           SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
           [ -z "$SQLITE_SRC" ] && SQLITE_SRC="/usr/lib/x86_64-linux-gnu/libsqlite3.so.0"
           cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
@@ -125,31 +123,38 @@ jobs:
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
 
-          # 7. Ejecutar linuxdeploy con el plugin GTK
-          export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
+          # 7. Plugin GTK
           mkdir -p ./plugins
           cp linuxdeploy-plugin-gtk.sh ./plugins/linuxdeploy-plugin-gtk
           export PATH=$PATH:$(pwd)/plugins
-          
+          export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --executable "$BINARY" \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
             --plugin gtk
 
-          # 8. AppRun especializado para GTK y Flutter
+          # 8. LIMPIEZA: Eliminar librerías base que causan warnings o conflictos de temas
+          # libselinux y libdbus suelen dar problemas si se incluyen
+          find AppDir/usr/lib -name "libselinux*" -delete || true
+          find AppDir/usr/lib -name "libdbus*" -delete || true
+
+          # 9. AppRun Avanzado (Cursor y Temas)
           cat > AppDir/AppRun <<'APP_RUN'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
+          # Prioridad a librerías internas para SQLite/Flutter
           export LD_LIBRARY_PATH="$HERE/usr/bin/lib:$HERE/usr/lib:$LD_LIBRARY_PATH"
-          export XDG_DATA_DIRS="$HERE/usr/share:$XDG_DATA_DIRS"
+          # Permitir ver iconos y temas del host para el cursor
+          export XDG_DATA_DIRS="$HERE/usr/share:/usr/share:/usr/local/share:$XDG_DATA_DIRS"
+          # Cargar cargadores de imágenes internos
           export GDK_PIXBUF_MODULE_FILE="$(find "$HERE/usr/lib" -name loaders.cache | head -n 1)"
           export GSETTINGS_SCHEMA_DIR="$HERE/usr/share/glib-2.0/schemas"
           exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
           APP_RUN
           chmod +x AppDir/AppRun
 
-          # 9. Crear el AppImage final
+          # 10. Crear el AppImage final
           ./appimagetool-x86_64.AppImage --runtime-file runtime-x86_64 AppDir "${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage"
 
       - name: Publicar Release en GitHub
