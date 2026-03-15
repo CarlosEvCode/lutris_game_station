@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.1...v1.4.2) (2026-03-15)
+
+
+### Bug Fixes
+
+* implementar estrategia maestro v6 con empaquetado manual mediante appimagetool y runtime local ([6c479a3](https://github.com/CarlosEvCode/lutris_game_station/commit/6c479a30a22842658d54f3feeb34c9ce3332ea55))
+
 ## [1.4.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.0...v1.4.1) (2026-03-15)
 
 
