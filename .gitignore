@@ -1,0 +1,40 @@
+# Archivos de Flutter y Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Archivos de plataforma
+linux/flutter/ephemeral/
+linux/flutter/generated_plugins.cmake
+
+# Logs y Archivos temporales
+*.log
+*.lock
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+!default.pbxuser
+!default.perspectivev3
+*.pyc
+*.pyo
+*.pyd
+.swp
+*~
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Secrets/API Keys (No incluir archivos .env o con keys)
+.env
+api_key.txt
+lib/secrets.dart
