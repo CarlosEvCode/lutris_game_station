@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.4](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.3...v1.4.4) (2026-03-15)
+
+
+### Bug Fixes
+
+* corregir descarga y ejecución del plugin GTK para linuxdeploy ([993e973](https://github.com/CarlosEvCode/lutris_game_station/commit/993e9732f90d4eda8387d7738855570fe96dcc4d))
+
 ## [1.4.3](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.2...v1.4.3) (2026-03-15)
 
 
