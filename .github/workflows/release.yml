@@ -1,0 +1,116 @@
+name: Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # -------------------------------------------------------------------
+  # JOB 1: RELEASE PLEASE
+  # -------------------------------------------------------------------
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: simple
+
+  # -------------------------------------------------------------------
+  # JOB 2: CONSTRUIR Y SUBIR APPIMAGE (LINUX)
+  # -------------------------------------------------------------------
+  build_linux:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    name: Build & Release AppImage
+    runs-on: ubuntu-20.04
+    env:
+      APP_NAME: lutris_game_station
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar dependencias de compilación Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build \
+            libgtk-3-dev libblkid-dev liblzma-dev \
+            libgcrypt20-dev libsqlite3-dev pkg-config
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Extraer versión desde el TAG
+        run: |
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          TAG=${TAG#v}
+          echo "TAG_VERSION=$TAG" >> $GITHUB_ENV
+
+      - name: Actualizar pubspec.yaml automáticamente
+        run: |
+          CURRENT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
+          BUILD_NUMBER=$(echo $CURRENT_VERSION | cut -d'+' -f2)
+          NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+          sed -i "s/^version:.*/version: $TAG_VERSION+$NEW_BUILD_NUMBER/" pubspec.yaml
+
+      - name: Instalar dependencias de Flutter
+        run: flutter pub get
+
+      - name: Compilar para Linux (Release)
+        run: flutter build linux --release
+
+      - name: Preparar AppImage (Descargar linuxdeploy)
+        run: |
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          
+          wget https://github.com/linuxdeploy/linuxdeploy-plugin-flutter/raw/master/linuxdeploy-plugin-flutter.sh
+          chmod +x linuxdeploy-plugin-flutter.sh
+
+      - name: Generar AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          # El plugin de flutter de linuxdeploy necesita estar en el PATH
+          mkdir -p ./plugins
+          mv linuxdeploy-plugin-flutter.sh ./plugins/linuxdeploy-plugin-flutter
+          export PATH=$PATH:$(pwd)/plugins
+          
+          # Ejecutar linuxdeploy
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --executable build/linux/x64/release/bundle/${{ env.APP_NAME }} \
+            --desktop-file linux/${{ env.APP_NAME }}.desktop \
+            --icon-file linux/${{ env.APP_NAME }}.png \
+            --plugin flutter \
+            --output appimage
+
+      - name: Renombrar AppImage para incluir versión
+        run: |
+          mv Lutris_Game_Station-x86_64.AppImage ${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage
+
+      - name: Publicar Release en GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            ${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

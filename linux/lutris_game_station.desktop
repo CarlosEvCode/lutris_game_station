@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Lutris Game Station
+Comment=A unified station for managing ROMs and visual media in Lutris.
+Exec=lutris_game_station
+Icon=lutris_game_station
+Terminal=false
+Categories=Game;Utility;
