@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.3...v1.3.4) (2026-03-15)
+
+
+### Bug Fixes
+
+* implementar estrategia maestra v3 con patchelf y organización de librerías estándar para AppImage ([adb13d1](https://github.com/CarlosEvCode/lutris_game_station/commit/adb13d14abb53e6bc3d537eba8cf5e886014d16e))
+
 ## [1.3.3](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.2...v1.3.3) (2026-03-15)
 
 
