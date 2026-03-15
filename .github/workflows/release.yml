@@ -100,30 +100,25 @@ jobs:
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar el contenido del bundle de Flutter al AppDir
-          # El ejecutable va a bin/
-          cp build/linux/x64/release/bundle/${{ env.APP_NAME }} AppDir/usr/bin/
-          # Las librerías .so van a lib/
-          cp build/linux/x64/release/bundle/lib/*.so AppDir/usr/lib/
-          # Los datos de Flutter van junto al binario
-          cp -r build/linux/x64/release/bundle/data AppDir/usr/bin/
+          # 3. Copiar TODO el bundle de Flutter a usr/bin (Mantiene estructura bin/lib/ y bin/data/)
+          cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
           
-          # Solución para SQLite: crear enlace simbólico si existe libsqlite3.so.0
-          # linuxdeploy desplegará libsqlite3.so.0 desde el sistema al AppDir
-          # Nosotros creamos el link para que Dart lo encuentre como libsqlite3.so
-          mkdir -p AppDir/usr/lib
-          ln -s libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so || true
-
           # 4. Copiar archivos de escritorio e iconos
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png
 
-          # 5. Ejecutar linuxdeploy para crear el AppImage
+          # 5. Ejecutar linuxdeploy
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --executable AppDir/usr/bin/${{ env.APP_NAME }} \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
-            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
             --output appimage
+
+          # 6. Solución SQLite: Crear enlace simbólico DENTRO del AppDir ya generado (en usr/lib)
+          # Esto asegura que libsqlite3.so -> libsqlite3.so.0 funcione para Dart
+          ln -sf libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so || true
+
+          # 7. Re-empaquetar para incluir el link si linuxdeploy no lo hizo (opcional pero seguro)
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
       - name: Renombrar AppImage para incluir versión
         run: |
