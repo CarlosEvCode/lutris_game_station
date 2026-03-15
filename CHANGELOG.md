@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.2.0...v1.2.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* resolver carga de sqlite3 y mejorar estructura del AppImage para temas GTK ([c1a7fcb](https://github.com/CarlosEvCode/lutris_game_station/commit/c1a7fcba6a2e9751383cadf5331363829aa44394))
+
 ## [1.2.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.4...v1.2.0) (2026-03-15)
 
 
