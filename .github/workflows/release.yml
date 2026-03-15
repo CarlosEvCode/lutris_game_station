@@ -57,7 +57,7 @@ jobs:
             clang cmake ninja-build lld \
             libgtk-3-dev libblkid-dev liblzma-dev \
             libgcrypt20-dev libsqlite3-dev pkg-config \
-            imagemagick patchelf
+            imagemagick patchelf libgdk-pixbuf2.0-dev
 
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
@@ -93,28 +93,29 @@ jobs:
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
 
-      - name: Generar AppImage (Estrategia Maestra V6 - Control Total)
+      - name: Generar AppImage (Estrategia Maestra V7 - GTK Integration)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
           # 1. Descargar herramientas necesarias
           curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -L -o linuxdeploy-plugin-gtk-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
           curl -L -o appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
-          chmod +x linuxdeploy-x86_64.AppImage appimagetool-x86_64.AppImage
+          chmod +x *.AppImage
 
           # 2. Preparar la estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar TODO el bundle de Flutter a usr/bin
+          # 3. Copiar bundle de Flutter
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # 4. Inyectar SQLite en la carpeta de librerías del bundle
+          # 4. SOLUCIÓN SQLITE: Copiar al bundle
           SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
           [ -z "$SQLITE_SRC" ] && SQLITE_SRC="/usr/lib/x86_64-linux-gnu/libsqlite3.so.0"
           cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
 
-          # 5. Fijar RPATH para que el binario busque sus librerías en ./lib/
+          # 5. Fijar RPATH
           BINARY="AppDir/usr/bin/${{ env.APP_NAME }}"
           patchelf --set-rpath '$ORIGIN/lib' "$BINARY"
 
@@ -122,24 +123,27 @@ jobs:
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
 
-          # 7. AppRun (Garante de rutas)
-          cat > AppDir/AppRun <<'APP_RUN'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "$0")")"
-          export LD_LIBRARY_PATH="$HERE/usr/bin/lib:$LD_LIBRARY_PATH"
-          exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
-          APP_RUN
-          chmod +x AppDir/AppRun
-
-          # 8. Usar linuxdeploy para recolectar dependencias del SISTEMA (GTK, etc)
-          # Seteamos LD_LIBRARY_PATH para que linuxdeploy encuentre los plugins de Flutter
+          # 7. Ejecutar linuxdeploy con el plugin GTK para recolectar cargadores de imágenes y temas
           export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --executable "$BINARY" \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
-            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png
+            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
+            --plugin gtk
 
-          # 9. Crear el AppImage final usando appimagetool directamente (Manual y Seguro)
+          # 8. AppRun especializado para GTK y Flutter
+          cat > AppDir/AppRun <<'APP_RUN'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          export LD_LIBRARY_PATH="$HERE/usr/bin/lib:$HERE/usr/lib:$LD_LIBRARY_PATH"
+          export XDG_DATA_DIRS="$HERE/usr/share:$XDG_DATA_DIRS"
+          export GDK_PIXBUF_MODULE_FILE="$(find "$HERE/usr/lib" -name loaders.cache | head -n 1)"
+          export GSETTINGS_SCHEMA_DIR="$HERE/usr/share/glib-2.0/schemas"
+          exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
+          APP_RUN
+          chmod +x AppDir/AppRun
+
+          # 9. Crear el AppImage final
           ./appimagetool-x86_64.AppImage --runtime-file runtime-x86_64 AppDir "${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage"
 
       - name: Publicar Release en GitHub
