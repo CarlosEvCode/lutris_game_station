@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.1...v1.3.2) (2026-03-15)
+
+
+### Bug Fixes
+
+* incrustar libsqlite3.so directamente en el bundle de la app para asegurar carga dinámica ([55edfca](https://github.com/CarlosEvCode/lutris_game_station/commit/55edfcab6585c3e68ac40f1af62701b21729833b))
+
 ## [1.3.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.0...v1.3.1) (2026-03-15)
 
 
