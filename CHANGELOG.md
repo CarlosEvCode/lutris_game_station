@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.7](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.6...v1.3.7) (2026-03-15)
+
+
+### Bug Fixes
+
+* compilar AppImage dentro de contenedor Ubuntu 20.04 para máxima compatibilidad ([7fe3950](https://github.com/CarlosEvCode/lutris_game_station/commit/7fe39501096161a35e7ca074eefb0192943b1205))
+
 ## [1.3.6](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.5...v1.3.6) (2026-03-15)
 
 
