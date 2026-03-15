@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.0...v1.3.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* mantener bundle de Flutter íntegro y corregir enlace simbólico de sqlite3 en AppImage ([5a16923](https://github.com/CarlosEvCode/lutris_game_station/commit/5a16923cb917267d1cfa7adcc77268fd7f2c8839))
+
 ## [1.3.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.2.2...v1.3.0) (2026-03-15)
 
 
