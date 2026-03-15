@@ -4,6 +4,7 @@ import '../platforms/platform_registry.dart';
 import '../core/lutris/lutris_detector.dart';
 import '../core/injector/rom_injector.dart';
 import '../core/metadata/metadata_downloader.dart';
+import '../core/lutris/config_manager.dart';
 import 'visual_manager_screen.dart';
 
 class MainWindow extends StatefulWidget {
@@ -36,9 +37,21 @@ class _MainWindowState extends State<MainWindow> {
   void initState() {
     super.initState();
     _detectLutris();
+    _loadPersistedConfig();
     final platforms = PlatformRegistry.getAllPlatforms();
     if (platforms.isNotEmpty) {
       _onPlatformChanged(platforms.first);
+    }
+  }
+
+  Future<void> _loadPersistedConfig() async {
+    final key = await ConfigManager.getApiKey();
+    if (key.isNotEmpty) {
+      setState(() {
+        _apiKey = key;
+        _apiKeyController.text = key;
+      });
+      _log("🔑 API Key cargada de la configuración.");
     }
   }
 
@@ -46,7 +59,6 @@ class _MainWindowState extends State<MainWindow> {
     setState(() {
       _selectedPlatform = val;
       if (val != null) {
-        // Inicializamos con todas las extensiones por defecto
         _selectedExtensions = List.from(val.extensions);
       }
     });
@@ -142,13 +154,15 @@ class _MainWindowState extends State<MainWindow> {
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
+                final newKey = _apiKeyController.text.trim();
                 setState(() {
-                  _apiKey = _apiKeyController.text.trim();
+                  _apiKey = newKey;
                 });
+                await ConfigManager.saveApiKey(newKey);
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('API Key guardada.')),
+                  const SnackBar(content: Text('API Key guardada permanentemente.')),
                 );
               },
               child: const Text('Guardar'),
@@ -194,7 +208,7 @@ class _MainWindowState extends State<MainWindow> {
           lutrisPaths: _lutrisPaths!,
           platformKey: _selectedPlatform!.platformId,
           romFolder: _romFolder,
-          customExtensions: _selectedExtensions, // Pasamos las extensiones filtradas
+          customExtensions: _selectedExtensions,
           progressCallback: (msg, prog) {
             _log(msg, prog);
           },
