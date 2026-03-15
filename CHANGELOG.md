@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.2.1...v1.2.2) (2026-03-15)
+
+
+### Bug Fixes
+
+* revertir cambios en main.dart y aplicar solución de sqlite3 vía symlink en AppImage ([5ea92a5](https://github.com/CarlosEvCode/lutris_game_station/commit/5ea92a57cdfc69475c19626b2331a2be1ff9e50d))
+
 ## [1.2.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.2.0...v1.2.1) (2026-03-15)
 
 
