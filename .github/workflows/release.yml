@@ -44,7 +44,7 @@ jobs:
       - name: Preparar entorno del contenedor
         run: |
           apt-get update
-          apt-get install -y curl git unzip xz-utils libglu1-mesa ca-certificates sudo
+          apt-get install -y curl git unzip xz-utils libglu1-mesa ca-certificates sudo jq
 
       - name: Checkout del código
         uses: actions/checkout@v4
