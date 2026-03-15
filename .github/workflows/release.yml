@@ -99,10 +99,12 @@ jobs:
         run: |
           # 1. Descargar herramientas necesarias
           curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          curl -L -o linuxdeploy-plugin-gtk-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
+          # URL corregida para el plugin GTK
+          curl -L -o linuxdeploy-plugin-gtk.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           curl -L -o appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
           chmod +x *.AppImage
+          chmod +x linuxdeploy-plugin-gtk.sh
 
           # 2. Preparar la estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
@@ -123,8 +125,12 @@ jobs:
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
 
-          # 7. Ejecutar linuxdeploy con el plugin GTK para recolectar cargadores de imágenes y temas
+          # 7. Ejecutar linuxdeploy con el plugin GTK
           export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
+          mkdir -p ./plugins
+          cp linuxdeploy-plugin-gtk.sh ./plugins/linuxdeploy-plugin-gtk
+          export PATH=$PATH:$(pwd)/plugins
+          
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --executable "$BINARY" \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
