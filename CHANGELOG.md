@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.2...v1.3.3) (2026-03-15)
+
+
+### Bug Fixes
+
+* implementar estrategia robusta v2 para AppImage con AppRun y LD_LIBRARY_PATH ([6782c06](https://github.com/CarlosEvCode/lutris_game_station/commit/6782c064e7c7d6ccf672c7a6cd49555ba0a76171))
+
 ## [1.3.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.1...v1.3.2) (2026-03-15)
 
 
