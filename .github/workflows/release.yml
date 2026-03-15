@@ -93,21 +93,23 @@ jobs:
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
 
-      - name: Generar AppImage (Estrategia Maestra V4 + Container)
+      - name: Generar AppImage (Estrategia Maestra V5)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
-          # 1. Descargar linuxdeploy
+          # 1. Descargar linuxdeploy y el runtime manualmente para evitar errores 502
           curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
+          
+          curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
 
           # 2. Preparar la estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar bundle de Flutter
+          # 3. Copiar TODO el bundle de Flutter a usr/bin (Mantiene bin/lib/libapp.so)
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # 4. SOLUCIÓN SQLITE: Copiar librería del contenedor
+          # 4. SOLUCIÓN SQLITE: Copiar librería del contenedor al bundle
           SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
           if [ -z "$SQLITE_SRC" ]; then
             for p in /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/libsqlite3.so.0 /lib/x86_64-linux-gnu/libsqlite3.so.0; do
@@ -118,7 +120,7 @@ jobs:
             cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
           fi
 
-          # 5. Fijar RPATH
+          # 5. Fijar RPATH para que el binario busque en su carpeta lib/ nativa de Flutter
           BINARY="AppDir/usr/bin/${{ env.APP_NAME }}"
           patchelf --set-rpath '$ORIGIN/lib' "$BINARY"
 
@@ -135,10 +137,13 @@ jobs:
           APP_RUN
           chmod +x AppDir/AppRun
 
-          # 8. Ejecutar linuxdeploy
+          # 8. Ejecutar linuxdeploy informando la ruta de las librerías de Flutter y usando el runtime local
+          export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            --executable "$BINARY" \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
+            --runtime-file runtime-x86_64 \
             --output appimage
 
       - name: Renombrar AppImage para incluir versión
