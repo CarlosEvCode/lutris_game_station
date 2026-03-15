@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.10](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.9...v1.3.10) (2026-03-15)
+
+
+### Bug Fixes
+
+* configurar git para confiar en todos los directorios dentro del contenedor ([0d2dcaf](https://github.com/CarlosEvCode/lutris_game_station/commit/0d2dcafa1077a8e86f3c8503a6a9b9674a5b5219))
+
 ## [1.3.9](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.8...v1.3.9) (2026-03-15)
 
 
