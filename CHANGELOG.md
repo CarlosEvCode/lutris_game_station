@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.3...v1.1.4) (2026-03-15)
+
+
+### Bug Fixes
+
+* redimensionar icono a 512x512 para cumplir validación de linuxdeploy ([e657974](https://github.com/CarlosEvCode/lutris_game_station/commit/e657974629ab6aacfdc872a115d01726e7ac8324))
+
 ## [1.1.3](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.2...v1.1.3) (2026-03-15)
 
 
