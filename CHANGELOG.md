@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.6](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.5...v1.4.6) (2026-03-15)
+
+
+### Bug Fixes
+
+* pulir integración con el host (cursor del mouse y limpieza de librerías base) y profesionalizar ID de aplicación ([a4f9de3](https://github.com/CarlosEvCode/lutris_game_station/commit/a4f9de3c05800cf8ad317e7da36056f47377f7f3))
+
 ## [1.4.5](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.4...v1.4.5) (2026-03-15)
 
 
