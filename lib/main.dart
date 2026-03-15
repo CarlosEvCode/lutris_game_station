@@ -1,11 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:ffi';
+import 'dart:io';
+import 'package:sqlite3/open.dart';
 import 'ui/main_window.dart';
 import 'platforms/platform_registry.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Override para cargar sqlite3 correctamente en Linux/AppImage
+  open.overrideFor(OperatingSystem.linux, () {
+    try {
+      return DynamicLibrary.open('libsqlite3.so.0');
+    } catch (_) {
+      return DynamicLibrary.open('libsqlite3.so');
+    }
+  });
+
   PlatformRegistry.initialize();
   runApp(const LutrisGameStationApp());
 }
