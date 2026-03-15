@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.0...v1.4.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* implementar estrategia maestra v5 con runtime local y LD_LIBRARY_PATH para linuxdeploy ([800db3b](https://github.com/CarlosEvCode/lutris_game_station/commit/800db3b820d88fe86ccdc29fa2d10ef89681f2ab))
+
 ## [1.4.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.11...v1.4.0) (2026-03-15)
 
 
