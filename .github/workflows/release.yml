@@ -86,7 +86,7 @@ jobs:
       - name: Compilar para Linux (Release)
         run: flutter build linux --release
 
-      - name: Generar AppImage (Estrategia Maestra V3)
+      - name: Generar AppImage (Estrategia Maestra V4)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
@@ -94,53 +94,44 @@ jobs:
           curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
-          # 2. Preparar AppDir
+          # 2. Preparar la estructura AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
 
-          # 3. Copiar bundle de flutter
+          # 3. Copiar TODO el bundle de Flutter a usr/bin (ESTO ES CRÍTICO)
+          # Esto mantiene la estructura bin/lib/libapp.so que Flutter necesita
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # 4. Mover libs del bundle a usr/lib (estándar AppImage)
-          if [ -d "AppDir/usr/bin/lib" ]; then
-            mv AppDir/usr/bin/lib/* AppDir/usr/lib/ || true
-            rmdir AppDir/usr/bin/lib || true
-          fi
-
-          # 5. Copiar libsqlite3.so.0 con fallbacks y crear symlink libsqlite3.so
+          # 4. SOLUCIÓN SQLITE: Copiar la librería del sistema DIRECTO al bundle de la app
           SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
           if [ -z "$SQLITE_SRC" ]; then
             for p in /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/libsqlite3.so.0 /lib/x86_64-linux-gnu/libsqlite3.so.0; do
               [ -f "$p" ] && { SQLITE_SRC="$p"; break; }
             done
           fi
-
           if [ -n "$SQLITE_SRC" ]; then
-            cp -v "$SQLITE_SRC" AppDir/usr/lib/
-            ln -sf libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so
-            echo "sqlite copiada desde $SQLITE_SRC"
-          else
-            echo "WARNING: libsqlite3.so.0 no encontrada"
+            cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
+            echo "sqlite copiada a usr/bin/lib/libsqlite3.so"
           fi
 
-          # 6. Fijar RPATH del binario para que busque en ../lib (indispensable)
+          # 5. Fijar RPATH del binario para que busque en su propia carpeta lib/
           BINARY="AppDir/usr/bin/${{ env.APP_NAME }}"
-          patchelf --set-rpath '$ORIGIN/../lib' "$BINARY"
-          echo "RPATH fijado en $BINARY"
+          patchelf --set-rpath '$ORIGIN/lib' "$BINARY"
+          echo "RPATH fijado a \$ORIGIN/lib en $BINARY"
 
-          # 7. Copiar .desktop e icono (redimensionado)
+          # 6. Copiar .desktop e icono (redimensionado)
           cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
           convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
 
-          # 8. Crear AppRun personalizado (Garantía total)
+          # 7. AppRun minimalista pero efectivo
           cat > AppDir/AppRun <<'APP_RUN'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
-          export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
+          export LD_LIBRARY_PATH="$HERE/usr/bin/lib:$LD_LIBRARY_PATH"
           exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
           APP_RUN
           chmod +x AppDir/AppRun
 
-          # 9. Ejecutar linuxdeploy (usando el AppDir ya organizado)
+          # 8. Ejecutar linuxdeploy
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
