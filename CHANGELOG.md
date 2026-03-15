@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.5](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.4...v1.4.5) (2026-03-15)
+
+
+### Bug Fixes
+
+* añadir dpkg-dev a dependencias para compatibilidad con plugin GTK en contenedor ([e5e15e7](https://github.com/CarlosEvCode/lutris_game_station/commit/e5e15e746c9cadc68b89638c412fe8b4b87b362f))
+
 ## [1.4.4](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.3...v1.4.4) (2026-03-15)
 
 
