@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.2...v1.1.3) (2026-03-15)
+
+
+### Bug Fixes
+
+* empaquetado AppImage manual para evitar errores de red con el plugin de Flutter ([0581178](https://github.com/CarlosEvCode/lutris_game_station/commit/05811786eab74754c25afedf6aaffe804a0c5c87))
+
 ## [1.1.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.1.1...v1.1.2) (2026-03-15)
 
 
