@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.0.0...v1.1.0) (2026-03-15)
+
+
+### Features
+
+* mostrar ruta de configuración al guardar API Key para mayor transparencia ([c443527](https://github.com/CarlosEvCode/lutris_game_station/commit/c44352728d4ca006c830415e2ff20d919f51134f))
+
 ## 1.0.0 (2026-03-15)
 
 
