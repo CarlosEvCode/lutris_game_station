@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.11](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.10...v1.3.11) (2026-03-15)
+
+
+### Bug Fixes
+
+* añadir lld a dependencias para resolver error de linker en ubuntu 20.04 ([a0e3c2b](https://github.com/CarlosEvCode/lutris_game_station/commit/a0e3c2b2cf542bd4c96521acdbacd704eab07750))
+
 ## [1.3.10](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.9...v1.3.10) (2026-03-15)
 
 
