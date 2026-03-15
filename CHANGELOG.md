@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.6](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.5...v1.3.6) (2026-03-15)
+
+
+### Bug Fixes
+
+* corregir título de la ventana principal de la aplicación ([0fa45a1](https://github.com/CarlosEvCode/lutris_game_station/commit/0fa45a1e26da44af6ef3db6b7beb50f2aafa6b8b))
+
 ## [1.3.5](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.3.4...v1.3.5) (2026-03-15)
 
 
