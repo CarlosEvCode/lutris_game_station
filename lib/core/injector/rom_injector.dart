@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:sqlite3/sqlite3.dart';
 import '../../platforms/platform_registry.dart';
 import 'package:path/path.dart' as p;
+import '../metadata/screenscraper_service.dart';
 
 class RomInjector {
   final Map<String, String?> lutrisPaths;
@@ -108,7 +109,11 @@ system:
     }
   }
 
-  Future<void> injectRoms({bool cleanOld = true, Map<String, dynamic>? specialConfig}) async {
+  Future<void> injectRoms({
+    bool cleanOld = true, 
+    Map<String, dynamic>? specialConfig,
+    bool useHighPrecision = false,
+  }) async {
     final folder = Directory(romFolder);
     if (!folder.existsSync()) {
       _log("❌ No existe la carpeta: $romFolder");
@@ -154,9 +159,25 @@ system:
 
     for (int i = 0; i < romFiles.length; i++) {
       final f = romFiles[i];
-      final gameSlug = p.basenameWithoutExtension(f.path);
-      final gameName = gameSlug;
+      String gameSlug = p.basenameWithoutExtension(f.path);
+      String gameName = gameSlug;
       final fullRomPath = f.path;
+
+      // --- ALTA PRECISIÓN (HASH) ---
+      if (useHighPrecision) {
+        _log("🔍 Calculando hash: $gameSlug...");
+        try {
+          final identified = await ScreenScraperService.identifyFile(fullRomPath);
+          if (identified != null && identified.name != null) {
+            gameName = identified.name!;
+            _log("✨ Identificado: $gameName");
+          } else {
+            _log("⚠️ No identificado, usando nombre de archivo.");
+          }
+        } catch (e) {
+          _log("⚠️ Error de identificación: $e");
+        }
+      }
 
       // 1. Evitar duplicados de formato en la misma carpeta
       if (processedSlugs.contains(gameSlug)) {

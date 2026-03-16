@@ -4,8 +4,10 @@ import '../platforms/platform_registry.dart';
 import '../core/lutris/lutris_detector.dart';
 import '../core/injector/rom_injector.dart';
 import '../core/metadata/metadata_downloader.dart';
+import '../core/metadata/screenscraper_service.dart';
 import '../core/lutris/config_manager.dart';
 import 'visual_manager_screen.dart';
+import 'rom_scanner_screen.dart';
 
 class MainWindow extends StatefulWidget {
   const MainWindow({Key? key}) : super(key: key);
@@ -23,8 +25,13 @@ class _MainWindowState extends State<MainWindow> {
   List<String> _selectedExtensions = [];
   String _romFolder = '';
   String _apiKey = '';
+  String _ssUser = '';
+  String _ssPassword = '';
+  String _ssDevId = '';
+  String _ssDevPassword = '';
   
   bool _cleanOldGames = true;
+  bool _useHighPrecision = false;
   bool _isProcessing = false;
   
   String _logText = 'Listo. Selecciona plataforma y carpeta de ROMs.\n';
@@ -32,6 +39,10 @@ class _MainWindowState extends State<MainWindow> {
   
   final ScrollController _logScrollController = ScrollController();
   final TextEditingController _apiKeyController = TextEditingController();
+  final TextEditingController _ssUserController = TextEditingController();
+  final TextEditingController _ssPasswordController = TextEditingController();
+  final TextEditingController _ssDevIdController = TextEditingController();
+  final TextEditingController _ssDevPasswordController = TextEditingController();
 
   @override
   void initState() {
@@ -46,13 +57,27 @@ class _MainWindowState extends State<MainWindow> {
 
   Future<void> _loadPersistedConfig() async {
     final key = await ConfigManager.getApiKey();
-    if (key.isNotEmpty) {
-      setState(() {
-        _apiKey = key;
-        _apiKeyController.text = key;
-      });
-      _log("🔑 API Key cargada de la configuración.");
-    }
+    final ssUser = await ConfigManager.getSSUser();
+    final ssPass = await ConfigManager.getSSPassword();
+    final ssDevId = await ConfigManager.getDevId();
+    final ssDevPass = await ConfigManager.getDevPassword();
+    
+    setState(() {
+      _apiKey = key;
+      _apiKeyController.text = key;
+      _ssUser = ssUser;
+      _ssUserController.text = ssUser;
+      _ssPassword = ssPass;
+      _ssPasswordController.text = ssPass;
+      _ssDevId = ssDevId;
+      _ssDevIdController.text = ssDevId;
+      _ssDevPassword = ssDevPass;
+      _ssDevPasswordController.text = ssDevPass;
+    });
+    
+    if (key.isNotEmpty) _log("🔑 API Key cargada de la configuración.");
+    if (ssUser.isNotEmpty) _log("📡 ScreenScraper Account detectada.");
+    if (ssDevId.isNotEmpty) _log("🛠️ ScreenScraper Dev Keys detectadas.");
   }
 
   void _onPlatformChanged(PlatformInfo? val) {
@@ -114,6 +139,11 @@ class _MainWindowState extends State<MainWindow> {
 
   void _showConfigDialog() {
     _apiKeyController.text = _apiKey;
+    _ssUserController.text = _ssUser;
+    _ssPasswordController.text = _ssPassword;
+    _ssDevIdController.text = _ssDevId;
+    _ssDevPasswordController.text = _ssDevPassword;
+
     showDialog(
       context: context,
       builder: (context) {
@@ -125,28 +155,103 @@ class _MainWindowState extends State<MainWindow> {
               Text('Configuración'),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('SteamGridDB API Key:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _apiKeyController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  hintText: 'Pega tu API Key aquí...',
-                  prefixIcon: const Icon(Icons.vpn_key),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  filled: true,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('SteamGridDB API Key:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _apiKeyController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Pega tu API Key aquí...',
+                    prefixIcon: const Icon(Icons.vpn_key),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Obtén tu API Key en steamgriddb.com/profile/api',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
+                const SizedBox(height: 24),
+                const Text('ScreenScraper Usuario:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _ssUserController,
+                  decoration: InputDecoration(
+                    hintText: 'Pseudo de ScreenScraper',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ssPasswordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Contraseña de ScreenScraper',
+                    prefixIcon: const Icon(Icons.lock),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text('ScreenScraper Developer API:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _ssDevIdController,
+                  decoration: InputDecoration(
+                    hintText: 'DevID (Obtenido en el foro)',
+                    prefixIcon: const Icon(Icons.developer_mode),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ssDevPasswordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'DevPassword',
+                    prefixIcon: const Icon(Icons.key),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                  ),
+                ),
+                const Text(
+                  'Solicita tus llaves en el foro de screenscraper.fr',
+                  style: TextStyle(fontSize: 11, color: Colors.blue, decoration: TextDecoration.underline),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await ConfigManager.saveSSCredentials(
+                        _ssUserController.text.trim(),
+                        _ssPasswordController.text,
+                      );
+                      await ConfigManager.saveDevCredentials(
+                        _ssDevIdController.text.trim(),
+                        _ssDevPasswordController.text.trim(),
+                      );
+                      final isValid = await ScreenScraperService.validateCredentials();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(isValid 
+                              ? '✅ ¡Cuenta y API Key validadas!' 
+                              : '❌ Error: Revisa todas tus credenciales.'),
+                            backgroundColor: isValid ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.verified_user),
+                    label: const Text('Validar Todo'),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -156,16 +261,26 @@ class _MainWindowState extends State<MainWindow> {
             FilledButton(
               onPressed: () async {
                 final newKey = _apiKeyController.text.trim();
+                final newUser = _ssUserController.text.trim();
+                final newPass = _ssPasswordController.text;
+                final newDevId = _ssDevIdController.text.trim();
+                final newDevPass = _ssDevPasswordController.text.trim();
+                
                 setState(() {
                   _apiKey = newKey;
+                  _ssUser = newUser;
+                  _ssPassword = newPass;
+                  _ssDevId = newDevId;
+                  _ssDevPassword = newDevPass;
                 });
+                
                 await ConfigManager.saveApiKey(newKey);
+                await ConfigManager.saveSSCredentials(newUser, newPass);
+                await ConfigManager.saveDevCredentials(newDevId, newDevPass);
+                
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('✅ API Key guardada en: ${ConfigManager.configFilePath}'),
-                    duration: const Duration(seconds: 4),
-                  ),
+                  const SnackBar(content: Text('✅ Configuración guardada.')),
                 );
               },
               child: const Text('Guardar'),
@@ -216,7 +331,10 @@ class _MainWindowState extends State<MainWindow> {
             _log(msg, prog);
           },
         );
-        await injector.injectRoms(cleanOld: _cleanOldGames);
+        await injector.injectRoms(
+          cleanOld: _cleanOldGames,
+          useHighPrecision: _useHighPrecision,
+        );
       }
       
       if (action == 'metadata' || action == 'full') {
@@ -273,7 +391,7 @@ class _MainWindowState extends State<MainWindow> {
           ),
         ],
       ),
-      body: _currentIndex == 0 ? _buildInjectorView() : _buildVisualManagerView(),
+      body: _buildBody(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
@@ -283,6 +401,17 @@ class _MainWindowState extends State<MainWindow> {
         ],
       ),
     );
+  }
+
+  Widget _buildBody() {
+    switch (_currentIndex) {
+      case 0:
+        return _buildInjectorView();
+      case 1:
+        return _buildVisualManagerView();
+      default:
+        return _buildInjectorView();
+    }
   }
 
   Widget _buildVisualManagerView() {
@@ -390,6 +519,15 @@ class _MainWindowState extends State<MainWindow> {
                   onChanged: _isProcessing ? null : (val) {
                     setState(() { _cleanOldGames = val; });
                   },
+                ),
+                SwitchListTile(
+                  title: const Text('Alta Precisión (Hash Detection)', style: TextStyle(fontSize: 14)),
+                  subtitle: const Text('Usa ScreenScraper para identificar juegos por su contenido', style: TextStyle(fontSize: 12)),
+                  value: _useHighPrecision,
+                  onChanged: _isProcessing ? null : (val) {
+                    setState(() { _useHighPrecision = val; });
+                  },
+                  secondary: Icon(Icons.fingerprint, color: _useHighPrecision ? Colors.teal : Colors.grey),
                 ),
               ],
             ),

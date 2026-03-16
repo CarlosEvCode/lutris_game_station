@@ -47,5 +47,41 @@ class ConfigManager {
     await _writeConfig(config);
   }
 
+  // ScreenScraper Credentials
+  static Future<String> getSSUser() async {
+    final config = await _readConfig();
+    return config['ss_user'] as String? ?? '';
+  }
+
+  static Future<String> getSSPassword() async {
+    final config = await _readConfig();
+    return config['ss_password'] as String? ?? '';
+  }
+
+  static Future<void> saveSSCredentials(String user, String password) async {
+    final config = await _readConfig();
+    config['ss_user'] = user;
+    config['ss_password'] = password;
+    await _writeConfig(config);
+  }
+
+  // Developer Credentials (API Keys)
+  static Future<String> getDevId() async {
+    final config = await _readConfig();
+    return config['dev_id'] as String? ?? '';
+  }
+
+  static Future<String> getDevPassword() async {
+    final config = await _readConfig();
+    return config['dev_password'] as String? ?? '';
+  }
+
+  static Future<void> saveDevCredentials(String devId, String devPassword) async {
+    final config = await _readConfig();
+    config['dev_id'] = devId;
+    config['dev_password'] = devPassword;
+    await _writeConfig(config);
+  }
+
   // Puedes añadir más configuraciones aquí en el futuro
 }
