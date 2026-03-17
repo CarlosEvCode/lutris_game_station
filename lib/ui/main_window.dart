@@ -7,6 +7,20 @@ import '../core/metadata/metadata_downloader.dart';
 import '../core/metadata/screenscraper_service.dart';
 import '../core/lutris/config_manager.dart';
 import 'visual_manager_screen.dart';
+import 'dart:io';
+import 'package:path/path.dart' as p;
+
+class InjectionItem {
+  final String filePath;
+  String displayName;
+  bool isSelected;
+
+  InjectionItem({
+    required this.filePath,
+    required this.displayName,
+    this.isSelected = true,
+  });
+}
 
 class MainWindow extends StatefulWidget {
   const MainWindow({Key? key}) : super(key: key);
@@ -30,6 +44,8 @@ class _MainWindowState extends State<MainWindow> {
   String _ssDevId = '';
   String _ssDevPassword = '';
   
+  List<InjectionItem> _previewItems = [];
+  bool _isScanning = false;
   bool _cleanOldGames = true;
   bool _useHighPrecision = false;
   bool _isProcessing = false;
@@ -85,6 +101,7 @@ class _MainWindowState extends State<MainWindow> {
       _selectedPlatform = val;
       if (val != null) {
         _selectedExtensions = List.from(val.extensions);
+        _previewItems = []; // Limpiar previa si cambia plataforma
       }
     });
   }
@@ -146,6 +163,46 @@ class _MainWindowState extends State<MainWindow> {
     if (folderPath != null) {
       setState(() {
         _romFolder = folderPath;
+        _previewItems = [];
+      });
+      _scanFolder();
+    }
+  }
+
+  Future<void> _scanFolder() async {
+    if (_romFolder.isEmpty || _selectedPlatform == null) return;
+
+    setState(() {
+      _isScanning = true;
+      _previewItems = [];
+    });
+
+    try {
+      final dir = Directory(_romFolder);
+      final List<FileSystemEntity> entities = await dir.list().toList();
+      
+      final List<InjectionItem> detected = [];
+      for (var entity in entities) {
+        if (entity is File) {
+          final ext = p.extension(entity.path).toLowerCase();
+          if (_selectedExtensions.contains(ext)) {
+            detected.add(InjectionItem(
+              filePath: entity.path,
+              displayName: p.basenameWithoutExtension(entity.path),
+            ));
+          }
+        }
+      }
+
+      setState(() {
+        _previewItems = detected;
+      });
+      _log("🔎 Escaneo finalizado: ${detected.length} juegos encontrados.");
+    } catch (e) {
+      _log("❌ Error escaneando carpeta: $e");
+    } finally {
+      setState(() {
+        _isScanning = false;
       });
     }
   }
@@ -335,6 +392,17 @@ class _MainWindowState extends State<MainWindow> {
 
     try {
       if (action == 'inject' || action == 'full') {
+        final selectedFiles = _previewItems
+            .where((item) => item.isSelected)
+            .map((item) => File(item.filePath))
+            .toList();
+
+        if (selectedFiles.isEmpty && _previewItems.isNotEmpty) {
+          _log("⚠️ No hay archivos seleccionados para inyectar.");
+          setState(() => _isProcessing = false);
+          return;
+        }
+
         final injector = RomInjector(
           lutrisPaths: _lutrisPaths!,
           platformKey: _selectedPlatform!.platformId,
@@ -344,9 +412,11 @@ class _MainWindowState extends State<MainWindow> {
             _log(msg, prog);
           },
         );
+        
         await injector.injectRoms(
           cleanOld: _cleanOldGames,
           useHighPrecision: _useHighPrecision,
+          customFiles: selectedFiles.isNotEmpty ? selectedFiles : null,
         );
       }
       
@@ -595,6 +665,10 @@ class _MainWindowState extends State<MainWindow> {
           ),
           const SizedBox(height: 24),
           
+          if (_previewItems.isNotEmpty) _buildPreviewSection(theme),
+          
+          const SizedBox(height: 24),
+          
           // Step 3: Action Buttons
           Row(
             children: [
@@ -663,6 +737,71 @@ class _MainWindowState extends State<MainWindow> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewSection(ThemeData theme) {
+    final selectedCount = _previewItems.where((i) => i.isSelected).length;
+    
+    return _buildStepCard(
+      title: '3. Previsualización y Selección ($selectedCount/${_previewItems.length})',
+      icon: Icons.checklist,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  for (var item in _previewItems) {
+                    item.isSelected = true;
+                  }
+                }),
+                icon: const Icon(Icons.select_all),
+                label: const Text('Todos'),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  for (var item in _previewItems) {
+                    item.isSelected = false;
+                  }
+                }),
+                icon: const Icon(Icons.deselect),
+                label: const Text('Ninguno'),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _isScanning ? null : _scanFolder,
+                tooltip: 'Volver a escanear',
+              ),
+            ],
+          ),
+          const Divider(),
+          Container(
+            height: 300,
+            decoration: BoxDecoration(
+              color: Colors.black12,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: _isScanning 
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                  itemCount: _previewItems.length,
+                  itemBuilder: (context, index) {
+                    final item = _previewItems[index];
+                    return CheckboxListTile(
+                      value: item.isSelected,
+                      onChanged: (val) => setState(() => item.isSelected = val ?? false),
+                      title: Text(item.displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      subtitle: Text(p.basename(item.filePath), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      dense: true,
+                      secondary: const Icon(Icons.videogame_asset_outlined, size: 20),
+                    );
+                  },
+                ),
           ),
         ],
       ),

@@ -113,6 +113,7 @@ system:
     bool cleanOld = true, 
     Map<String, dynamic>? specialConfig,
     bool useHighPrecision = false,
+    List<File>? customFiles, // Nuevo parámetro
   }) async {
     final folder = Directory(romFolder);
     if (!folder.existsSync()) {
@@ -129,12 +130,17 @@ system:
     int count = 0;
     List<String> errors = [];
 
-    // Obtener archivos de la carpeta
-    final files = folder.listSync().whereType<File>().toList();
-    final romFiles = files.where((f) {
-      final ext = p.extension(f.path).toLowerCase();
-      return extensions.contains(ext);
-    }).toList();
+    // Usar archivos específicos o escanear carpeta
+    List<File> romFiles;
+    if (customFiles != null) {
+      romFiles = customFiles;
+    } else {
+      final files = folder.listSync().whereType<File>().toList();
+      romFiles = files.where((f) {
+        final ext = p.extension(f.path).toLowerCase();
+        return extensions.contains(ext);
+      }).toList();
+    }
 
     final totalFiles = romFiles.length;
     if (totalFiles == 0) {
