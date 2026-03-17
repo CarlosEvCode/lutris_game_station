@@ -50,3 +50,5 @@ linuxdeploy-x86_64.AppImage
 .env
 api_key.txt
 lib/secrets.dart
+
+docs-api/
