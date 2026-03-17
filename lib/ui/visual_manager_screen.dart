@@ -28,6 +28,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   final int _limit = 24;
   bool _isLoading = false;
   bool _hasMore = true; // Controlar si quedan más juegos por cargar
+  bool _isGridView = true; // Nuevo estado para alternar vistas
   
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -231,6 +232,19 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                 ),
               ),
               const SizedBox(width: 16),
+              // Selector de Vista
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+                  onPressed: () => setState(() => _isGridView = !_isGridView),
+                  tooltip: _isGridView ? 'Cambiar a Vista de Lista' : 'Cambiar a Vista de Cuadrícula',
+                ),
+              ),
+              const SizedBox(width: 16),
               IconButton.filledTonal(
                 icon: const Icon(Icons.refresh), 
                 onPressed: _refreshList,
@@ -240,46 +254,128 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
           ),
         ),
         
-        // Grid de Juegos
+        // Grid o Lista de Juegos
         Expanded(
           child: _games.isEmpty && _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _games.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.search_off, size: 64, color: theme.disabledColor),
-                      const SizedBox(height: 16),
-                      Text("No se encontraron juegos", style: theme.textTheme.titleMedium),
-                    ],
-                  ),
-                )
-              : GridView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(24),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 280,
-                    childAspectRatio: 0.72,
-                    crossAxisSpacing: 24,
-                    mainAxisSpacing: 24,
-                  ),
-                  itemCount: _games.length + (_hasMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index < _games.length) {
-                      return _buildGameCard(_games[index]);
-                    } else {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                    }
-                  },
-                ),
+              ? _buildEmptyState(theme)
+              : _isGridView ? _buildGridView() : _buildListView(),
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 64, color: theme.disabledColor),
+          const SizedBox(height: 16),
+          Text("No se encontraron juegos", style: theme.textTheme.titleMedium),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridView() {
+    return GridView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(24),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 280,
+        childAspectRatio: 0.72,
+        crossAxisSpacing: 24,
+        mainAxisSpacing: 24,
+      ),
+      itemCount: _games.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index < _games.length) {
+          return _buildGameCard(_games[index]);
+        } else {
+          return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()));
+        }
+      },
+    );
+  }
+
+  Widget _buildListView() {
+    return ListView.separated(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(24),
+      itemCount: _games.length + (_hasMore ? 1 : 0),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        if (index < _games.length) {
+          return _buildGameListTile(_games[index]);
+        } else {
+          return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()));
+        }
+      },
+    );
+  }
+
+  Widget _buildGameListTile(Game game) {
+    final theme = Theme.of(context);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: theme.dividerColor.withOpacity(0.05)),
+      ),
+      child: InkWell(
+        onTap: () => _editMetadata(game),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              // Icono miniatura
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white.withOpacity(0.05),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _buildImagePreview(game, 'icon'),
+              ),
+              const SizedBox(width: 16),
+              // Nombre y Plataforma
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      game.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      game.slug,
+                      style: TextStyle(color: theme.hintColor, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              // Banner miniatura
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  width: 120,
+                  height: 40,
+                  child: _buildImagePreview(game, 'banner'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.chevron_right, color: Colors.white24),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
