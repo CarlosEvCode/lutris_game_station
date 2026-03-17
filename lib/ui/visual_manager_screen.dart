@@ -29,6 +29,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   bool _isLoading = false;
   bool _hasMore = true; // Controlar si quedan más juegos por cargar
   bool _isGridView = true; // Nuevo estado para alternar vistas
+  String _filterMode = 'all'; // all, missingCover, missingBanner, missingIcon
   
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -80,6 +81,15 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   }
 
   void _refreshList() {
+    if (_selectedPlatform != null) {
+      _repo.syncMetadataWithDisk(
+        runner: _selectedPlatform!.runner,
+        coversDir: widget.lutrisPaths['covers_dir']!,
+        bannersDir: widget.lutrisPaths['banners_dir']!,
+        iconsDir: widget.lutrisPaths['system_icons_dir']!,
+      );
+    }
+    
     setState(() {
       _page = 0;
       _games = [];
@@ -97,7 +107,12 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     await Future.delayed(const Duration(milliseconds: 50));
     
     final offset = _page * _limit;
-    final fetchedGames = _repo.getGamesByRunner(_selectedPlatform!.runner, limit: _limit, offset: offset);
+    final fetchedGames = _repo.getGamesByRunner(
+      _selectedPlatform!.runner, 
+      limit: _limit, 
+      offset: offset,
+      filterMode: _filterMode != 'all' ? _filterMode : null,
+    );
     
     setState(() {
       _isLoading = false;
@@ -244,6 +259,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                   tooltip: _isGridView ? 'Cambiar a Vista de Lista' : 'Cambiar a Vista de Cuadrícula',
                 ),
               ),
+              const SizedBox(width: 16),
+              _buildFilterButton(theme),
               const SizedBox(width: 16),
               IconButton.filledTonal(
                 icon: const Icon(Icons.refresh), 
@@ -461,5 +478,61 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildFilterButton(ThemeData theme) {
+    return PopupMenuButton<String>(
+      tooltip: 'Filtrar por metadatos faltantes',
+      onSelected: (val) {
+        setState(() => _filterMode = val);
+        _refreshList();
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'all', child: Text('Ver Todos')),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: 'missingCover', child: Text('Sin Portada')),
+        const PopupMenuItem(value: 'missingBanner', child: Text('Sin Banner')),
+        const PopupMenuItem(value: 'missingIcon', child: Text('Sin Icono')),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: _filterMode == 'all' 
+            ? theme.colorScheme.surfaceVariant.withOpacity(0.3)
+            : theme.colorScheme.primaryContainer.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _filterMode == 'all' ? Colors.transparent : theme.colorScheme.primary.withOpacity(0.5)
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _filterMode == 'all' ? Icons.filter_list : Icons.filter_list_alt, 
+              size: 20, 
+              color: _filterMode == 'all' ? null : theme.colorScheme.primary
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _getFilterLabel(), 
+              style: TextStyle(
+                fontSize: 13, 
+                fontWeight: _filterMode == 'all' ? FontWeight.normal : FontWeight.bold,
+                color: _filterMode == 'all' ? null : theme.colorScheme.primary
+              )
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getFilterLabel() {
+    switch (_filterMode) {
+      case 'missingCover': return 'Sin Portada';
+      case 'missingBanner': return 'Sin Banner';
+      case 'missingIcon': return 'Sin Icono';
+      default: return 'Filtros';
+    }
   }
 }
