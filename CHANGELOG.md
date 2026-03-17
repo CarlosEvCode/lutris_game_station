@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.6.0...v2.0.0) (2026-03-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* UI layout restructured from vertical scroll to 2-column desktop layout
+
+### Features
+
+* complete ScreenScraper API integration and desktop UI redesign ([4d2dbe7](https://github.com/CarlosEvCode/lutris_game_station/commit/4d2dbe7c77cb15c29cff861cd2a329e00d7c62df))
+
 ## [1.6.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.5.2...v1.6.0) (2026-03-17)
 
 
