@@ -77,6 +77,9 @@ cp linuxdeploy-plugin-gtk.sh ./plugins/linuxdeploy-plugin-gtk
 export PATH=$PATH:$(pwd)/plugins
 export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
 
+# SOLUCIÓN AL ERROR DE AUTO-DETECCIÓN: Forzamos GTK 3 (que es la que usa Flutter)
+export DEPLOY_GTK_VERSION=3
+
 ./linuxdeploy-x86_64.AppImage --appdir AppDir \
     --executable "$BINARY" \
     --desktop-file "$DESKTOP_FILE" \
