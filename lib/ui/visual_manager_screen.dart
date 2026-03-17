@@ -26,11 +26,12 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   
   int _page = 0;
   final int _limit = 24;
-  int _totalGames = 0;
   bool _isLoading = false;
+  bool _hasMore = true; // Controlar si quedan más juegos por cargar
   
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   
   // Para forzar el refresco de imágenes
   int _imageVersion = 0;
@@ -39,17 +40,33 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   void initState() {
     super.initState();
     _repo = GamesRepository(widget.lutrisPaths['db_path']!);
+    _scrollController.addListener(_onScroll);
     _loadPlatforms();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+      if (!_isLoading && _hasMore) {
+        _loadMoreGames();
+      }
+    }
   }
 
   @override
   void didUpdateWidget(covariant VisualManagerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si la ruta de la base de datos cambió (ej: de Nativo a Flatpak)
     if (oldWidget.lutrisPaths['db_path'] != widget.lutrisPaths['db_path']) {
       _repo = GamesRepository(widget.lutrisPaths['db_path']!);
-      _imageVersion++; // Forzar que las imágenes se refresquen
-      _loadGames();
+      _imageVersion++;
+      _refreshList();
     }
   }
 
@@ -57,35 +74,37 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     _platforms = PlatformRegistry.getAllPlatforms();
     if (_platforms.isNotEmpty) {
       _selectedPlatform = _platforms.first;
-      _loadGames();
+      _refreshList();
     }
   }
 
-  void _loadGames() async {
-    if (_selectedPlatform == null) return;
+  void _refreshList() {
+    setState(() {
+      _page = 0;
+      _games = [];
+      _hasMore = true;
+    });
+    _loadMoreGames();
+  }
+
+  void _loadMoreGames() async {
+    if (_selectedPlatform == null || _isLoading || !_hasMore) return;
+    
     setState(() => _isLoading = true);
     
-    // Simular ligero delay
-    await Future.delayed(const Duration(milliseconds: 100));
+    // Pequeño delay para suavizar la UI si la carga es muy rápida
+    await Future.delayed(const Duration(milliseconds: 50));
     
-    // En una implementación real, el repositorio debería filtrar por búsqueda.
-    // Por simplicidad en este paso, filtramos la lista obtenida si hay búsqueda.
-    // Pero lo ideal es que el repo soporte LIKE.
-    
-    _totalGames = _repo.getGamesCount(_selectedPlatform!.runner);
     final offset = _page * _limit;
-    var fetchedGames = _repo.getGamesByRunner(_selectedPlatform!.runner, limit: _limit, offset: offset);
-    
-    if (_searchQuery.isNotEmpty) {
-      fetchedGames = fetchedGames.where((g) => 
-        g.name.toLowerCase().contains(_searchQuery.toLowerCase()) || 
-        g.slug.toLowerCase().contains(_searchQuery.toLowerCase())
-      ).toList();
-    }
+    final fetchedGames = _repo.getGamesByRunner(_selectedPlatform!.runner, limit: _limit, offset: offset);
     
     setState(() {
-      _games = fetchedGames;
       _isLoading = false;
+      if (fetchedGames.length < _limit) {
+        _hasMore = false;
+      }
+      _games.addAll(fetchedGames);
+      _page++;
     });
   }
 
@@ -143,7 +162,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
       widget.apiKey,
       () => setState(() {
         _imageVersion++; // Evict cache
-        _loadGames();
+        _refreshList();
       }),
     );
   }
@@ -179,11 +198,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                     )).toList(),
                     onChanged: (val) {
                       if (val != null) {
-                        setState(() {
-                          _selectedPlatform = val;
-                          _page = 0;
-                        });
-                        _loadGames();
+                        setState(() => _selectedPlatform = val);
+                        _refreshList();
                       }
                     },
                   ),
@@ -196,7 +212,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                   controller: _searchController,
                   onChanged: (val) {
                     setState(() => _searchQuery = val);
-                    _loadGames();
+                    _refreshList();
                   },
                   decoration: InputDecoration(
                     hintText: 'Buscar juego...',
@@ -205,7 +221,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                       ? IconButton(icon: const Icon(Icons.clear, size: 20), onPressed: () {
                           _searchController.clear();
                           setState(() => _searchQuery = '');
-                          _loadGames();
+                          _refreshList();
                         })
                       : null,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -217,7 +233,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
               const SizedBox(width: 16),
               IconButton.filledTonal(
                 icon: const Icon(Icons.refresh), 
-                onPressed: _loadGames,
+                onPressed: _refreshList,
                 tooltip: 'Refrescar',
               ),
             ],
@@ -226,7 +242,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
         
         // Grid de Juegos
         Expanded(
-          child: _isLoading 
+          child: _games.isEmpty && _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _games.isEmpty
               ? Center(
@@ -240,6 +256,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                   ),
                 )
               : GridView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(24),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 280,
@@ -247,38 +264,21 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                     crossAxisSpacing: 24,
                     mainAxisSpacing: 24,
                   ),
-                  itemCount: _games.length,
+                  itemCount: _games.length + (_hasMore ? 1 : 0),
                   itemBuilder: (context, index) {
-                    final game = _games[index];
-                    return _buildGameCard(game);
+                    if (index < _games.length) {
+                      return _buildGameCard(_games[index]);
+                    } else {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
                   },
                 ),
         ),
-        
-        // Paginación
-        if (_totalGames > _limit && _searchQuery.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SegmentedButton<int>(
-                  segments: [
-                    ButtonSegment(value: -1, icon: const Icon(Icons.chevron_left), enabled: _page > 0),
-                    ButtonSegment(value: _page, label: Text('Página ${_page + 1}')),
-                    ButtonSegment(value: 1, icon: const Icon(Icons.chevron_right), enabled: (_page + 1) * _limit < _totalGames),
-                  ],
-                  selected: {_page},
-                  onSelectionChanged: (Set<int> newSelection) {
-                    final val = newSelection.first;
-                    if (val == -1) setState(() => _page--);
-                    else if (val == 1) setState(() => _page++);
-                    _loadGames();
-                  },
-                ),
-              ],
-            ),
-          )
       ],
     );
   }
