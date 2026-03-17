@@ -14,16 +14,18 @@ class InjectionItem {
   final String filePath;
   String displayName;
   bool isSelected;
+  bool wasManuallyEdited;
 
   InjectionItem({
     required this.filePath,
     required this.displayName,
     this.isSelected = true,
+    this.wasManuallyEdited = false,
   });
 }
 
 class MainWindow extends StatefulWidget {
-  const MainWindow({Key? key}) : super(key: key);
+  const MainWindow({super.key});
 
   @override
   State<MainWindow> createState() => _MainWindowState();
@@ -34,32 +36,32 @@ class _MainWindowState extends State<MainWindow> {
   LutrisDetector? _detector;
   Map<String, String?>? _lutrisPaths;
   List<String> _availableLutrisModes = [];
-  
+
   PlatformInfo? _selectedPlatform;
   List<String> _selectedExtensions = [];
   String _romFolder = '';
   String _apiKey = '';
   String _ssUser = '';
   String _ssPassword = '';
-  String _ssDevId = '';
-  String _ssDevPassword = '';
-  
+
   List<InjectionItem> _previewItems = [];
   bool _isScanning = false;
   bool _cleanOldGames = true;
   bool _useHighPrecision = false;
   bool _isRecursive = false;
   bool _isProcessing = false;
-  
-  String _logText = 'Listo. Selecciona plataforma y carpeta de ROMs.\n';
+
+  // Estadísticas de API (para widget discreto)
+  bool _showApiStats = false;
+  Map<String, dynamic>? _apiStats;
+
+  String _logText = '';
   double _progress = 0.0;
-  
+
   final ScrollController _logScrollController = ScrollController();
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _ssUserController = TextEditingController();
   final TextEditingController _ssPasswordController = TextEditingController();
-  final TextEditingController _ssDevIdController = TextEditingController();
-  final TextEditingController _ssDevPasswordController = TextEditingController();
 
   @override
   void initState() {
@@ -76,9 +78,7 @@ class _MainWindowState extends State<MainWindow> {
     final key = await ConfigManager.getApiKey();
     final ssUser = await ConfigManager.getSSUser();
     final ssPass = await ConfigManager.getSSPassword();
-    final ssDevId = await ConfigManager.getDevId();
-    final ssDevPass = await ConfigManager.getDevPassword();
-    
+
     setState(() {
       _apiKey = key;
       _apiKeyController.text = key;
@@ -86,15 +86,10 @@ class _MainWindowState extends State<MainWindow> {
       _ssUserController.text = ssUser;
       _ssPassword = ssPass;
       _ssPasswordController.text = ssPass;
-      _ssDevId = ssDevId;
-      _ssDevIdController.text = ssDevId;
-      _ssDevPassword = ssDevPass;
-      _ssDevPasswordController.text = ssDevPass;
     });
-    
-    if (key.isNotEmpty) _log("🔑 API Key cargada de la configuración.");
-    if (ssUser.isNotEmpty) _log("📡 ScreenScraper Account detectada.");
-    if (ssDevId.isNotEmpty) _log("🛠️ ScreenScraper Dev Keys detectadas.");
+
+    if (key.isNotEmpty) _log("API Key cargada.");
+    if (ssUser.isNotEmpty) _log("ScreenScraper configurado.");
   }
 
   void _onPlatformChanged(PlatformInfo? val) async {
@@ -102,7 +97,7 @@ class _MainWindowState extends State<MainWindow> {
       _selectedPlatform = val;
       if (val != null) {
         _selectedExtensions = List.from(val.extensions);
-        _previewItems = []; // Limpiar previa si cambia plataforma
+        _previewItems = [];
       }
     });
 
@@ -122,14 +117,14 @@ class _MainWindowState extends State<MainWindow> {
       _detector = LutrisDetector(interactive: false);
       _lutrisPaths = _detector?.getPaths();
       _availableLutrisModes = _detector?.getAvailableModes() ?? [];
-      
+
       if (_lutrisPaths?['mode'] == null || _lutrisPaths!['mode']!.isEmpty) {
-        _log("⚠️ No se detectó ninguna instalación de Lutris.");
+        _log("No se detectó Lutris instalado.");
       } else {
-        _log("✅ Detectado Lutris: ${_lutrisPaths!['mode']}");
+        _log("Lutris detectado: ${_lutrisPaths!['mode']}");
       }
     } catch (e) {
-      _log("❌ Error detectando Lutris: $e");
+      _log("Error detectando Lutris: $e");
     }
   }
 
@@ -144,7 +139,7 @@ class _MainWindowState extends State<MainWindow> {
       if (_logScrollController.hasClients) {
         _logScrollController.animateTo(
           _logScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
       }
@@ -160,13 +155,13 @@ class _MainWindowState extends State<MainWindow> {
 
   void _switchLutrisMode(String newMode) {
     if (_detector == null || _lutrisPaths?['mode'] == newMode) return;
-    
+
     setState(() {
       _detector!.setMode(newMode);
       _lutrisPaths = _detector!.getPaths();
     });
-    
-    _log("🔄 Cambiado a Lutris: $newMode");
+
+    _log("Cambiado a: $newMode");
   }
 
   void _editItemName(InjectionItem item) {
@@ -174,7 +169,7 @@ class _MainWindowState extends State<MainWindow> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Editar Nombre del Juego'),
+        title: const Text('Editar Nombre'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -184,11 +179,15 @@ class _MainWindowState extends State<MainWindow> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () {
               setState(() {
                 item.displayName = controller.text.trim();
+                item.wasManuallyEdited = true;
               });
               Navigator.pop(context);
             },
@@ -199,6 +198,36 @@ class _MainWindowState extends State<MainWindow> {
     );
   }
 
+  Future<bool> _showQuotaWarningDialog(int available, int total) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+            SizedBox(width: 8),
+            Text('Quota Limitada', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Solo tienes $available requests para $total ROMs.\n\n'
+          'Las primeras $available serán identificadas por ScreenScraper.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Future<void> _browseFolder() async {
     final String? folderPath = await getDirectoryPath();
     if (folderPath != null) {
@@ -207,7 +236,10 @@ class _MainWindowState extends State<MainWindow> {
         _previewItems = [];
       });
       if (_selectedPlatform != null) {
-        await ConfigManager.savePlatformPath(_selectedPlatform!.platformId, folderPath);
+        await ConfigManager.savePlatformPath(
+          _selectedPlatform!.platformId,
+          folderPath,
+        );
       }
       _scanFolder();
     }
@@ -223,27 +255,40 @@ class _MainWindowState extends State<MainWindow> {
 
     try {
       final dir = Directory(_romFolder);
-      final List<FileSystemEntity> entities = await dir.list(recursive: _isRecursive).toList();
-      
-      final List<InjectionItem> detected = [];
+      final entities = await dir.list(recursive: _isRecursive).toList();
+
+      final List<File> matchingFiles = [];
       for (var entity in entities) {
         if (entity is File) {
           final ext = p.extension(entity.path).toLowerCase();
           if (_selectedExtensions.contains(ext)) {
-            detected.add(InjectionItem(
-              filePath: entity.path,
-              displayName: p.basenameWithoutExtension(entity.path),
-            ));
+            matchingFiles.add(entity);
           }
         }
+      }
+
+      final filteredFiles = RomInjector.filterDuplicatesByPriority(
+        matchingFiles,
+        _selectedPlatform!,
+        (msg, [progress]) => _log(msg),
+      );
+
+      final List<InjectionItem> detected = [];
+      for (var file in filteredFiles) {
+        detected.add(
+          InjectionItem(
+            filePath: file.path,
+            displayName: p.basenameWithoutExtension(file.path),
+          ),
+        );
       }
 
       setState(() {
         _previewItems = detected;
       });
-      _log("🔎 Escaneo finalizado: ${detected.length} juegos encontrados.");
+      _log("${detected.length} juegos encontrados.");
     } catch (e) {
-      _log("❌ Error escaneando carpeta: $e");
+      _log("Error: $e");
     } finally {
       setState(() {
         _isScanning = false;
@@ -251,12 +296,25 @@ class _MainWindowState extends State<MainWindow> {
     }
   }
 
+  Future<void> _refreshApiStats() async {
+    final stats = ScreenScraperService.getStats();
+    final quota = await ScreenScraperService.getQuota();
+    setState(() {
+      _apiStats = {
+        ...stats,
+        if (quota != null) ...{
+          'requestsToday': quota.requestsToday,
+          'maxRequestsPerDay': quota.maxRequestsPerDay,
+          'remainingToday': quota.remainingToday,
+        },
+      };
+    });
+  }
+
   void _showConfigDialog() {
     _apiKeyController.text = _apiKey;
     _ssUserController.text = _ssUser;
     _ssPasswordController.text = _ssPassword;
-    _ssDevIdController.text = _ssDevId;
-    _ssDevPasswordController.text = _ssDevPassword;
 
     showDialog(
       context: context,
@@ -264,107 +322,102 @@ class _MainWindowState extends State<MainWindow> {
         return AlertDialog(
           title: const Row(
             children: [
-              Icon(Icons.settings, color: Colors.blue),
-              SizedBox(width: 12),
-              Text('Configuración'),
+              Icon(Icons.settings, color: Colors.blue, size: 20),
+              SizedBox(width: 8),
+              Text('Configuración', style: TextStyle(fontSize: 16)),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('SteamGridDB API Key:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _apiKeyController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Pega tu API Key aquí...',
-                    prefixIcon: const Icon(Icons.vpn_key),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'SteamGridDB API Key:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text('ScreenScraper Usuario:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _ssUserController,
-                  decoration: InputDecoration(
-                    hintText: 'Pseudo de ScreenScraper',
-                    prefixIcon: const Icon(Icons.person),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _apiKeyController,
+                    obscureText: true,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'API Key...',
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.vpn_key, size: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _ssPasswordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Contraseña de ScreenScraper',
-                    prefixIcon: const Icon(Icons.lock),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ScreenScraper:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text('ScreenScraper Developer API:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _ssDevIdController,
-                  decoration: InputDecoration(
-                    hintText: 'DevID (Obtenido en el foro)',
-                    prefixIcon: const Icon(Icons.developer_mode),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _ssUserController,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Usuario',
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.person, size: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _ssDevPasswordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'DevPassword',
-                    prefixIcon: const Icon(Icons.key),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _ssPasswordController,
+                    obscureText: true,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Contraseña',
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.lock, size: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
-                const Text(
-                  'Solicita tus llaves en el foro de screenscraper.fr',
-                  style: TextStyle(fontSize: 11, color: Colors.blue, decoration: TextDecoration.underline),
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      await ConfigManager.saveSSCredentials(
-                        _ssUserController.text.trim(),
-                        _ssPasswordController.text,
-                      );
-                      await ConfigManager.saveDevCredentials(
-                        _ssDevIdController.text.trim(),
-                        _ssDevPasswordController.text.trim(),
-                      );
-                      final isValid = await ScreenScraperService.validateCredentials();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(isValid 
-                              ? '✅ ¡Cuenta y API Key validadas!' 
-                              : '❌ Error: Revisa todas tus credenciales.'),
-                            backgroundColor: isValid ? Colors.green : Colors.red,
-                          ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        await ConfigManager.saveSSCredentials(
+                          _ssUserController.text.trim(),
+                          _ssPasswordController.text,
                         );
-                      }
-                    },
-                    icon: const Icon(Icons.verified_user),
-                    label: const Text('Validar Todo'),
+                        final isValid =
+                            await ScreenScraperService.validateCredentials();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isValid
+                                    ? 'Credenciales válidas'
+                                    : 'Credenciales incorrectas',
+                              ),
+                              backgroundColor: isValid
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.verified_user, size: 16),
+                      label: const Text(
+                        'Validar',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           actions: [
@@ -377,25 +430,17 @@ class _MainWindowState extends State<MainWindow> {
                 final newKey = _apiKeyController.text.trim();
                 final newUser = _ssUserController.text.trim();
                 final newPass = _ssPasswordController.text;
-                final newDevId = _ssDevIdController.text.trim();
-                final newDevPass = _ssDevPasswordController.text.trim();
-                
+
                 setState(() {
                   _apiKey = newKey;
                   _ssUser = newUser;
                   _ssPassword = newPass;
-                  _ssDevId = newDevId;
-                  _ssDevPassword = newDevPass;
                 });
-                
+
                 await ConfigManager.saveApiKey(newKey);
                 await ConfigManager.saveSSCredentials(newUser, newPass);
-                await ConfigManager.saveDevCredentials(newDevId, newDevPass);
-                
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('✅ Configuración guardada.')),
-                );
+
+                if (context.mounted) Navigator.of(context).pop();
               },
               child: const Text('Guardar'),
             ),
@@ -408,25 +453,64 @@ class _MainWindowState extends State<MainWindow> {
   Future<void> _startProcess(String action) async {
     if (_isProcessing) return;
     if (_lutrisPaths == null) {
-      _log("❌ Rutas de Lutris no detectadas.");
+      _log("Rutas de Lutris no detectadas.");
       return;
     }
     if (_selectedPlatform == null) {
-      _log("❌ Selecciona una plataforma.");
+      _log("Selecciona una plataforma.");
       return;
     }
     if ((action == 'inject' || action == 'full') && _romFolder.isEmpty) {
-      _log("❌ Selecciona una carpeta de ROMs.");
+      _log("Selecciona una carpeta de ROMs.");
       return;
     }
-    if ((action == 'inject' || action == 'full') && _selectedExtensions.isEmpty) {
-      _log("❌ Debes seleccionar al menos una extensión para inyectar.");
+    if ((action == 'inject' || action == 'full') &&
+        _selectedExtensions.isEmpty) {
+      _log("Selecciona al menos una extensión.");
       return;
     }
     if ((action == 'metadata' || action == 'full') && _apiKey.isEmpty) {
-      _log("❌ Configura la API Key de SteamGridDB.");
+      _log("Configura la API Key de SteamGridDB.");
       _showConfigDialog();
       return;
+    }
+
+    // Verificar quota si Alta Precisión está activada
+    if (_useHighPrecision && (action == 'inject' || action == 'full')) {
+      final selectedCount = _previewItems.where((i) => i.isSelected).length;
+
+      if (_ssUser.isEmpty || _ssPassword.isEmpty) {
+        _log("Alta Precisión requiere credenciales de ScreenScraper.");
+        _showConfigDialog();
+        return;
+      }
+
+      _log("Verificando quota...");
+      final quotaCheck = await ScreenScraperService.canStartMassiveScan(
+        selectedCount,
+      );
+
+      if (!quotaCheck.canProceed) {
+        _log("Error: ${quotaCheck.message}");
+        return;
+      }
+
+      if (quotaCheck.remainingRequests != null &&
+          quotaCheck.remainingRequests! < selectedCount) {
+        _log("Advertencia: ${quotaCheck.message}");
+
+        final shouldContinue = await _showQuotaWarningDialog(
+          quotaCheck.remainingRequests!,
+          selectedCount,
+        );
+
+        if (!shouldContinue) {
+          _log("Operación cancelada.");
+          return;
+        }
+      } else {
+        _log("Quota OK: ${quotaCheck.remainingRequests} disponibles");
+      }
     }
 
     setState(() {
@@ -442,12 +526,14 @@ class _MainWindowState extends State<MainWindow> {
             .toList();
 
         final Map<String, String> customNames = {
-          for (var item in _previewItems.where((i) => i.isSelected))
-            item.filePath: item.displayName
+          for (var item in _previewItems.where(
+            (i) => i.isSelected && i.wasManuallyEdited,
+          ))
+            item.filePath: item.displayName,
         };
 
         if (selectedFiles.isEmpty && _previewItems.isNotEmpty) {
-          _log("⚠️ No hay archivos seleccionados para inyectar.");
+          _log("No hay archivos seleccionados.");
           setState(() => _isProcessing = false);
           return;
         }
@@ -457,11 +543,9 @@ class _MainWindowState extends State<MainWindow> {
           platformKey: _selectedPlatform!.platformId,
           romFolder: _romFolder,
           customExtensions: _selectedExtensions,
-          progressCallback: (msg, prog) {
-            _log(msg, prog);
-          },
+          progressCallback: (msg, prog) => _log(msg, prog),
         );
-        
+
         await injector.injectRoms(
           cleanOld: _cleanOldGames,
           useHighPrecision: _useHighPrecision,
@@ -469,20 +553,21 @@ class _MainWindowState extends State<MainWindow> {
           customNames: customNames,
         );
       }
-      
+
       if (action == 'metadata' || action == 'full') {
         final downloader = MetadataDownloader(
           lutrisPaths: _lutrisPaths!,
           apiKey: _apiKey,
           runner: _selectedPlatform!.runner,
-          progressCallback: (msg, prog) {
-            _log(msg, prog);
-          },
+          progressCallback: (msg, prog) => _log(msg, prog),
         );
         await downloader.downloadMetadata(skipExisting: true);
       }
+
+      // Actualizar estadísticas después de procesar
+      await _refreshApiStats();
     } catch (e) {
-      _log("❌ Error fatal: $e");
+      _log("Error: $e");
     } finally {
       setState(() {
         _isProcessing = false;
@@ -495,23 +580,36 @@ class _MainWindowState extends State<MainWindow> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lutris Game Station', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+        title: const Text(
+          'Lutris Game Station',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
+        toolbarHeight: 48,
         actions: [
           _buildLutrisSelector(),
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings, size: 20),
             onPressed: _showConfigDialog,
             tooltip: 'Configuración',
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(),
       bottomNavigationBar: NavigationBar(
+        height: 56,
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.flash_on), label: 'Inyector Automático'),
-          NavigationDestination(icon: Icon(Icons.grid_view), label: 'Gestor Visual'),
+          NavigationDestination(
+            icon: Icon(Icons.flash_on, size: 20),
+            label: 'Inyector',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.grid_view, size: 20),
+            label: 'Gestor Visual',
+          ),
         ],
       ),
     );
@@ -529,67 +627,83 @@ class _MainWindowState extends State<MainWindow> {
   }
 
   Widget _buildLutrisSelector() {
-    final currentMode = _lutrisPaths != null ? _lutrisPaths!['mode']! : "No detectado";
+    final currentMode = _lutrisPaths != null
+        ? _lutrisPaths!['mode']!
+        : "No detectado";
     final isDetected = _lutrisPaths != null;
 
     if (_availableLutrisModes.length <= 1) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        margin: const EdgeInsets.only(right: 4),
         decoration: BoxDecoration(
           color: Colors.white10,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.computer, size: 16, color: isDetected ? Colors.green : Colors.red),
-            const SizedBox(width: 8),
+            Icon(
+              Icons.computer,
+              size: 14,
+              color: isDetected ? Colors.green : Colors.red,
+            ),
+            const SizedBox(width: 6),
             Text(
               currentMode,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ],
         ),
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      child: PopupMenuButton<String>(
-        tooltip: 'Cambiar versión de Lutris',
-        onSelected: _switchLutrisMode,
-        offset: const Offset(0, 45),
-        itemBuilder: (context) => _availableLutrisModes.map((mode) => PopupMenuItem(
-          value: mode,
-          child: Row(
-            children: [
-              Icon(Icons.check, color: currentMode == mode ? Colors.green : Colors.transparent),
-              const SizedBox(width: 8),
-              Text(mode),
-            ],
-          ),
-        )).toList(),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.blue.withOpacity(0.5)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.swap_horiz, size: 16, color: Colors.blue),
-              const SizedBox(width: 8),
-              Text(
-                currentMode,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+    return PopupMenuButton<String>(
+      tooltip: 'Cambiar versión de Lutris',
+      onSelected: _switchLutrisMode,
+      offset: const Offset(0, 40),
+      itemBuilder: (context) => _availableLutrisModes
+          .map(
+            (mode) => PopupMenuItem(
+              value: mode,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.check,
+                    size: 16,
+                    color: currentMode == mode
+                        ? Colors.green
+                        : Colors.transparent,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(mode, style: const TextStyle(fontSize: 13)),
+                ],
               ),
-              const Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
-            ],
-          ),
+            ),
+          )
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        margin: const EdgeInsets.only(right: 4),
+        decoration: BoxDecoration(
+          color: Colors.blue.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.swap_horiz, size: 14, color: Colors.blue),
+            const SizedBox(width: 6),
+            Text(
+              currentMode,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue,
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, size: 14, color: Colors.blue),
+          ],
         ),
       ),
     );
@@ -597,336 +711,659 @@ class _MainWindowState extends State<MainWindow> {
 
   Widget _buildVisualManagerView() {
     if (_lutrisPaths == null) {
-      return const Center(child: Text("Rutas de Lutris no detectadas."));
+      return const Center(child: Text("Lutris no detectado."));
     }
-    return VisualManagerScreen(
-      lutrisPaths: _lutrisPaths!,
-      apiKey: _apiKey,
+    return VisualManagerScreen(lutrisPaths: _lutrisPaths!, apiKey: _apiKey);
+  }
+
+  // ============================================================================
+  // NUEVO DISEÑO: Layout de 2 columnas para escritorio
+  // ============================================================================
+
+  Widget _buildInjectorView() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Si la pantalla es muy angosta, usar layout vertical
+        if (constraints.maxWidth < 800) {
+          return _buildInjectorViewMobile();
+        }
+        return _buildInjectorViewDesktop();
+      },
     );
   }
 
-  Widget _buildInjectorView() {
-    final platforms = PlatformRegistry.getAllPlatforms();
+  Widget _buildInjectorViewDesktop() {
     final theme = Theme.of(context);
-    
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ===== COLUMNA IZQUIERDA: Configuración =====
+        SizedBox(
+          width: 320,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                right: BorderSide(
+                  color: theme.dividerColor.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildConfigSection(),
+                  const SizedBox(height: 16),
+                  _buildApiStatsWidget(),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // ===== COLUMNA DERECHA: Preview + Log + Acciones =====
+        Expanded(
+          child: Column(
+            children: [
+              // Lista de ROMs (expandible)
+              Expanded(flex: 3, child: _buildPreviewPanel()),
+              // Log y progreso
+              Expanded(flex: 2, child: _buildLogPanel()),
+              // Botones de acción
+              _buildActionBar(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInjectorViewMobile() {
+    // Fallback para pantallas pequeñas (tablet/móvil)
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Step 1: Platform
-          _buildStepCard(
-            title: '1. Selección de Plataforma',
-            icon: Icons.gamepad,
-            child: DropdownButtonFormField<PlatformInfo>(
-              value: _selectedPlatform,
-              items: platforms.map((p) => DropdownMenuItem(
-                value: p,
-                child: Text(p.platformName),
-              )).toList(),
-              onChanged: _isProcessing ? null : _onPlatformChanged,
-              decoration: InputDecoration(
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.sports_esports),
-              ),
-            ),
-          ),
+          _buildConfigSection(),
           const SizedBox(height: 16),
-          
-          // Step 2: ROMs Folder & Extensions
-          _buildStepCard(
-            title: '2. Ubicación y Filtros de ROMs',
-            icon: Icons.folder,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        readOnly: true,
-                        controller: TextEditingController(text: _romFolder),
-                        decoration: InputDecoration(
-                          hintText: 'Selecciona la carpeta con tus ROMs...',
-                          filled: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          prefixIcon: const Icon(Icons.folder_open),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton.tonal(
-                      onPressed: _isProcessing ? null : _browseFolder,
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Buscar'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text('Extensiones Permitidas:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                if (_selectedPlatform != null)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 0,
-                    children: _selectedPlatform!.extensions.map((ext) {
-                      final isSelected = _selectedExtensions.contains(ext);
-                      return FilterChip(
-                        label: Text(ext, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                        selected: isSelected,
-                        onSelected: _isProcessing ? null : (selected) {
-                          setState(() {
-                            if (selected) {
-                              _selectedExtensions.add(ext);
-                            } else {
-                              _selectedExtensions.remove(ext);
-                            }
-                          });
-                        },
-                        selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-                        checkmarkColor: theme.colorScheme.primary,
-                      );
-                    }).toList(),
-                  ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  title: const Text('Limpiar juegos existentes', style: TextStyle(fontSize: 14)),
-                  subtitle: const Text('Borra entradas previas de este runner en Lutris', style: TextStyle(fontSize: 12)),
-                  value: _cleanOldGames,
-                  onChanged: _isProcessing ? null : (val) {
-                    setState(() { _cleanOldGames = val; });
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('Alta Precisión (Hash Detection)', style: TextStyle(fontSize: 14)),
-                  subtitle: const Text('Usa ScreenScraper para identificar juegos por su contenido', style: TextStyle(fontSize: 12)),
-                  value: _useHighPrecision,
-                  onChanged: _isProcessing ? null : (val) {
-                    setState(() { _useHighPrecision = val; });
-                  },
-                  secondary: Icon(Icons.fingerprint, color: _useHighPrecision ? Colors.teal : Colors.grey),
-                ),
-                SwitchListTile(
-                  title: const Text('Escaneo Recursivo', style: TextStyle(fontSize: 14)),
-                  subtitle: const Text('Busca ROMs dentro de subcarpetas', style: TextStyle(fontSize: 12)),
-                  value: _isRecursive,
-                  onChanged: _isProcessing ? null : (val) {
-                    setState(() { 
-                      _isRecursive = val; 
-                      _scanFolder(); // Re-escanear al cambiar
-                    });
-                  },
-                  secondary: Icon(Icons.folder_copy, color: _isRecursive ? Colors.blue : Colors.grey),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          if (_previewItems.isNotEmpty) _buildPreviewSection(theme),
-          
-          const SizedBox(height: 24),
-          
-          // Step 3: Action Buttons
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionButton(
-                  label: 'Solo Inyectar',
-                  icon: Icons.add_to_photos,
-                  color: Colors.blueGrey,
-                  onPressed: () => _startProcess('inject'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionButton(
-                  label: 'Metadatos',
-                  icon: Icons.download,
-                  color: Colors.indigo,
-                  onPressed: () => _startProcess('metadata'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildActionButton(
-            label: 'Proceso Completo (Inyectar + Metadatos)',
-            icon: Icons.auto_awesome,
-            color: Colors.green.shade700,
-            isPrimary: true,
-            onPressed: () => _startProcess('full'),
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // Progress and Log
-          const Text('Actividad y Progreso', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: _progress, 
-              minHeight: 12,
-              backgroundColor: Colors.white12,
-              valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
-            ),
-          ),
+          SizedBox(height: 300, child: _buildPreviewPanel()),
           const SizedBox(height: 16),
-          Container(
-            height: 250,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: ListView(
-              controller: _logScrollController,
-              children: [
-                Text(
-                  _logText,
-                  style: const TextStyle(
-                    fontFamily: 'monospace', 
-                    fontSize: 13, 
-                    color: Colors.greenAccent,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          SizedBox(height: 200, child: _buildLogPanel()),
+          const SizedBox(height: 16),
+          _buildActionBar(),
         ],
       ),
     );
   }
 
-  Widget _buildPreviewSection(ThemeData theme) {
-    final selectedCount = _previewItems.where((i) => i.isSelected).length;
-    
-    return _buildStepCard(
-      title: '3. Previsualización y Selección ($selectedCount/${_previewItems.length})',
-      icon: Icons.checklist,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              TextButton.icon(
-                onPressed: () => setState(() {
-                  for (var item in _previewItems) {
-                    item.isSelected = true;
-                  }
-                }),
-                icon: const Icon(Icons.select_all),
-                label: const Text('Todos'),
-              ),
-              TextButton.icon(
-                onPressed: () => setState(() {
-                  for (var item in _previewItems) {
-                    item.isSelected = false;
-                  }
-                }),
-                icon: const Icon(Icons.deselect),
-                label: const Text('Ninguno'),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _isScanning ? null : _scanFolder,
-                tooltip: 'Volver a escanear',
-              ),
-            ],
-          ),
-          const Divider(),
-          Container(
-            height: 300,
-            decoration: BoxDecoration(
-              color: Colors.black12,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: _isScanning 
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  itemCount: _previewItems.length,
-                  itemBuilder: (context, index) {
-                    final item = _previewItems[index];
-                    return CheckboxListTile(
-                      value: item.isSelected,
-                      onChanged: (val) => setState(() => item.isSelected = val ?? false),
-                      title: Text(item.displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      subtitle: Text(p.basename(item.filePath), style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                      dense: true,
-                      secondary: IconButton(
-                        icon: const Icon(Icons.edit, size: 18),
-                        onPressed: () => _editItemName(item),
-                        tooltip: 'Editar nombre',
-                      ),
-                    );
-                  },
-                ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ============================================================================
+  // SECCIÓN DE CONFIGURACIÓN (Columna izquierda)
+  // ============================================================================
 
-  Widget _buildStepCard({required String title, required IconData icon, required Widget child}) {
-    return Card(
-      elevation: 0,
-      color: Colors.white.withOpacity(0.05),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Colors.white10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildConfigSection() {
+    final platforms = PlatformRegistry.getAllPlatforms();
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Plataforma
+        const Text(
+          'Plataforma',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<PlatformInfo>(
+          value: _selectedPlatform,
+          items: platforms
+              .map(
+                (p) => DropdownMenuItem(
+                  value: p,
+                  child: Text(
+                    p.platformName,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: _isProcessing ? null : _onPlatformChanged,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            prefixIcon: const Icon(Icons.sports_esports, size: 18),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Carpeta de ROMs
+        const Text(
+          'Carpeta de ROMs',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 12),
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: theme.dividerColor),
+                ),
+                child: Text(
+                  _romFolder.isEmpty ? 'Sin seleccionar...' : _romFolder,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _romFolder.isEmpty ? Colors.grey : null,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
-            const SizedBox(height: 20),
-            child,
+            const SizedBox(width: 8),
+            IconButton.filled(
+              onPressed: _isProcessing ? null : _browseFolder,
+              icon: const Icon(Icons.folder_open, size: 18),
+              tooltip: 'Buscar carpeta',
+              style: IconButton.styleFrom(
+                minimumSize: const Size(36, 36),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // Extensiones (compactas)
+        const Text(
+          'Extensiones',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        if (_selectedPlatform != null)
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: _selectedPlatform!.extensions.map((ext) {
+              final isSelected = _selectedExtensions.contains(ext);
+              return FilterChip(
+                label: Text(ext, style: const TextStyle(fontSize: 10)),
+                selected: isSelected,
+                onSelected: _isProcessing
+                    ? null
+                    : (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedExtensions.add(ext);
+                          } else {
+                            _selectedExtensions.remove(ext);
+                          }
+                        });
+                      },
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }).toList(),
+          ),
+
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 8),
+
+        // Opciones (checkboxes compactos)
+        _buildCompactCheckbox(
+          'Limpiar juegos existentes',
+          'Borra entradas previas de este runner',
+          _cleanOldGames,
+          (val) => setState(() => _cleanOldGames = val ?? false),
+        ),
+        _buildCompactCheckbox(
+          'Alta Precisión',
+          'Identificar por hash (ScreenScraper)',
+          _useHighPrecision,
+          (val) => setState(() => _useHighPrecision = val ?? false),
+          icon: Icons.fingerprint,
+          iconColor: _useHighPrecision ? Colors.teal : null,
+        ),
+        _buildCompactCheckbox(
+          'Escaneo recursivo',
+          'Incluir subcarpetas',
+          _isRecursive,
+          (val) {
+            setState(() => _isRecursive = val ?? false);
+            _scanFolder();
+          },
+          icon: Icons.folder_copy,
+          iconColor: _isRecursive ? Colors.blue : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactCheckbox(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool?> onChanged, {
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return InkWell(
+      onTap: _isProcessing ? null : () => onChanged(!value),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: _isProcessing ? null : onChanged,
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: iconColor ?? Colors.grey),
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionButton({
-    required String label, 
-    required IconData icon, 
-    required Color color, 
-    required VoidCallback onPressed,
-    bool isPrimary = false,
-  }) {
-    final style = isPrimary 
-      ? FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          backgroundColor: color,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        )
-      : FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          backgroundColor: color.withOpacity(0.2),
-          foregroundColor: color,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        );
+  // ============================================================================
+  // WIDGET DE ESTADÍSTICAS DE API (discreto, expandible)
+  // ============================================================================
 
-    return FilledButton.icon(
-      onPressed: _isProcessing ? null : onPressed,
-      icon: Icon(icon),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      style: style,
+  Widget _buildApiStatsWidget() {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: InkWell(
+        onTap: () async {
+          if (!_showApiStats) {
+            await _refreshApiStats();
+          }
+          setState(() => _showApiStats = !_showApiStats);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _showApiStats ? Icons.analytics : Icons.analytics_outlined,
+                    size: 16,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'API Stats',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _showApiStats ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+              if (_showApiStats && _apiStats != null) ...[
+                const SizedBox(height: 12),
+                _buildStatRow(
+                  'Requests hoy',
+                  '${_apiStats!['requestsToday'] ?? '?'}/${_apiStats!['maxRequestsPerDay'] ?? '?'}',
+                ),
+                _buildStatRow('Cache hits', '${_apiStats!['cacheHits'] ?? 0}'),
+                _buildStatRow('Cache size', '${_apiStats!['cacheSize'] ?? 0}'),
+                _buildStatRow(
+                  'Total requests',
+                  '${_apiStats!['totalRequests'] ?? 0}',
+                ),
+              ],
+              if (_showApiStats && _apiStats == null) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'No hay datos disponibles',
+                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // PANEL DE PREVIEW (Lista de ROMs)
+  // ============================================================================
+
+  Widget _buildPreviewPanel() {
+    final selectedCount = _previewItems.where((i) => i.isSelected).length;
+    final theme = Theme.of(context);
+
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.list, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  'ROMs detectadas',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$selectedCount/${_previewItems.length}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildMiniButton('Todos', () {
+                  setState(() {
+                    for (var item in _previewItems) {
+                      item.isSelected = true;
+                    }
+                  });
+                }),
+                const SizedBox(width: 4),
+                _buildMiniButton('Ninguno', () {
+                  setState(() {
+                    for (var item in _previewItems) {
+                      item.isSelected = false;
+                    }
+                  });
+                }),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 16),
+                  onPressed: _isScanning ? null : _scanFolder,
+                  tooltip: 'Re-escanear',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Lista
+          Expanded(
+            child: _isScanning
+                ? const Center(child: CircularProgressIndicator())
+                : _previewItems.isEmpty
+                ? Center(
+                    child: Text(
+                      _romFolder.isEmpty
+                          ? 'Selecciona una carpeta de ROMs'
+                          : 'No se encontraron ROMs',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _previewItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _previewItems[index];
+                      return ListTile(
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        leading: Checkbox(
+                          value: item.isSelected,
+                          onChanged: (val) =>
+                              setState(() => item.isSelected = val ?? false),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        title: Text(
+                          item.displayName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: item.wasManuallyEdited ? Colors.amber : null,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          p.basename(item.filePath),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.edit, size: 14),
+                          onPressed: () => _editItemName(item),
+                          tooltip: 'Editar nombre',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                        ),
+                        onTap: () =>
+                            setState(() => item.isSelected = !item.isSelected),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniButton(String label, VoidCallback onPressed) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 10),
+      ),
+      child: Text(label),
+    );
+  }
+
+  // ============================================================================
+  // PANEL DE LOG
+  // ============================================================================
+
+  Widget _buildLogPanel() {
+    final theme = Theme.of(context);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Progress bar
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: LinearProgressIndicator(
+              value: _progress,
+              minHeight: 4,
+              backgroundColor: Colors.white10,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          // Log content
+          Expanded(
+            child: ListView(
+              controller: _logScrollController,
+              padding: const EdgeInsets.all(12),
+              children: [
+                Text(
+                  _logText.isEmpty ? 'Listo.' : _logText,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: Colors.greenAccent,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // BARRA DE ACCIONES
+  // ============================================================================
+
+  Widget _buildActionBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Botones secundarios
+          OutlinedButton.icon(
+            onPressed: _isProcessing ? null : () => _startProcess('inject'),
+            icon: const Icon(Icons.add_to_photos, size: 16),
+            label: const Text('Inyectar'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: _isProcessing ? null : () => _startProcess('metadata'),
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Metadatos'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+          ),
+          const Spacer(),
+          // Botón principal
+          FilledButton.icon(
+            onPressed: _isProcessing ? null : () => _startProcess('full'),
+            icon: _isProcessing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.play_arrow, size: 18),
+            label: Text(_isProcessing ? 'Procesando...' : 'Ejecutar'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -18,6 +18,7 @@ class RomInjector {
   late final List<String> extensions;
   late final String platformName;
   late final bool disableRuntime;
+  late final String? screenScraperId;
 
   RomInjector({
     required this.lutrisPaths,
@@ -29,13 +30,14 @@ class RomInjector {
     final info = PlatformRegistry.getPlatform(platformKey);
     if (info == null) throw Exception("Platform not supported: $platformKey");
     platformInfo = info;
-    
+
     dbPath = lutrisPaths['db_path']!;
     configDir = lutrisPaths['config_dir_main']!;
     runner = platformInfo.runner;
     extensions = customExtensions ?? platformInfo.extensions;
     platformName = platformInfo.platformName;
     disableRuntime = platformInfo.disableRuntime;
+    screenScraperId = platformInfo.screenScraperId;
   }
 
   void _log(String message, [double? progress]) {
@@ -46,16 +48,78 @@ class RomInjector {
     }
   }
 
-  String _createLutrisYaml(String gameSlug, String romPath, int timestamp, {Map<String, dynamic>? specialConfig}) {
+  /// Filtra archivos duplicados manteniendo solo el de mayor prioridad.
+  /// Por ejemplo, si hay game.bin y game.cue, solo mantiene game.bin
+  List<File> _filterDuplicatesByPriority(List<File> files) {
+    return filterDuplicatesByPriority(files, platformInfo, _log);
+  }
+
+  /// Versión estática para usar desde otros lugares (como main_window)
+  /// [logCallback] es opcional para logging
+  static List<File> filterDuplicatesByPriority(
+    List<File> files,
+    PlatformInfo platformInfo, [
+    void Function(String message, [double? progress])? logCallback,
+  ]) {
+    // Agrupar archivos por nombre base (sin extensión)
+    final Map<String, List<File>> groupedByName = {};
+
+    for (final file in files) {
+      final baseName = p.basenameWithoutExtension(file.path);
+      groupedByName.putIfAbsent(baseName, () => []).add(file);
+    }
+
+    final List<File> result = [];
+
+    for (final entry in groupedByName.entries) {
+      final filesWithSameName = entry.value;
+
+      if (filesWithSameName.length == 1) {
+        // Solo hay un archivo con este nombre, lo agregamos directamente
+        result.add(filesWithSameName.first);
+      } else {
+        // Hay múltiples archivos con el mismo nombre, elegimos el de mayor prioridad
+        filesWithSameName.sort((a, b) {
+          final extA = p.extension(a.path).toLowerCase();
+          final extB = p.extension(b.path).toLowerCase();
+          final priorityA = platformInfo.getExtensionPriority(extA);
+          final priorityB = platformInfo.getExtensionPriority(extB);
+          return priorityA.compareTo(priorityB);
+        });
+
+        final selected = filesWithSameName.first;
+        final skipped = filesWithSameName
+            .skip(1)
+            .map((f) => p.extension(f.path))
+            .join(', ');
+        logCallback?.call(
+          "📁 ${entry.key}: usando ${p.extension(selected.path)} (ignorando: $skipped)",
+        );
+        result.add(selected);
+      }
+    }
+
+    return result;
+  }
+
+  String _createLutrisYaml(
+    String gameSlug,
+    String romPath,
+    int timestamp, {
+    Map<String, dynamic>? specialConfig,
+  }) {
     final baseName = "$gameSlug-$timestamp";
     final filenameReal = "$baseName.yml";
     final fullYamlPath = p.join(configDir, filenameReal);
 
     String yamlContent;
 
-    if (runner == "mame" && specialConfig != null && specialConfig['working_dir'] != null) {
+    if (runner == "mame" &&
+        specialConfig != null &&
+        specialConfig['working_dir'] != null) {
       final romDir = p.dirname(romPath);
-      yamlContent = '''
+      yamlContent =
+          '''
 game:
   main_file: "$romPath"
   working_dir: "$romDir"
@@ -65,7 +129,8 @@ system:
 ''';
     } else {
       final disableRuntimeStr = disableRuntime ? "true" : "false";
-      yamlContent = '''
+      yamlContent =
+          '''
 game:
   main_file: $romPath
 system:
@@ -85,10 +150,13 @@ system:
 
   void _cleanOldGames() {
     _log("🧹 Limpiando juegos antiguos de $runner...");
-    
+
     final db = sqlite3.open(dbPath);
     try {
-      final results = db.select("SELECT configpath FROM games WHERE runner = ?", [runner]);
+      final results = db.select(
+        "SELECT configpath FROM games WHERE runner = ?",
+        [runner],
+      );
       for (final row in results) {
         final String? configId = row['configpath'] as String?;
         if (configId != null && configId.isNotEmpty) {
@@ -110,7 +178,7 @@ system:
   }
 
   Future<void> injectRoms({
-    bool cleanOld = true, 
+    bool cleanOld = true,
     Map<String, dynamic>? specialConfig,
     bool useHighPrecision = false,
     List<File>? customFiles,
@@ -134,13 +202,15 @@ system:
     // Usar archivos específicos o escanear carpeta
     List<File> romFiles;
     if (customFiles != null) {
-      romFiles = customFiles;
+      romFiles = _filterDuplicatesByPriority(customFiles);
     } else {
       final files = folder.listSync().whereType<File>().toList();
-      romFiles = files.where((f) {
+      final matchingFiles = files.where((f) {
         final ext = p.extension(f.path).toLowerCase();
         return extensions.contains(ext);
       }).toList();
+      // Filtrar duplicados por prioridad de extensión
+      romFiles = _filterDuplicatesByPriority(matchingFiles);
     }
 
     final totalFiles = romFiles.length;
@@ -152,11 +222,13 @@ system:
 
     // Set para evitar duplicados en la misma sesión (ej: Game.chd y Game.pbp)
     Set<String> processedSlugs = {};
-    
+
     // Obtener juegos existentes en DB para evitar duplicados si cleanOld es false
     Set<String> existingSlugs = {};
     if (!cleanOld) {
-      final rows = db.select("SELECT slug FROM games WHERE runner = ?", [runner]);
+      final rows = db.select("SELECT slug FROM games WHERE runner = ?", [
+        runner,
+      ]);
       for (final row in rows) {
         existingSlugs.add(row['slug'] as String);
       }
@@ -172,10 +244,14 @@ system:
 
       // --- ALTA PRECISIÓN (HASH) ---
       // Solo buscamos si el usuario no ha editado el nombre manualmente
-      if (useHighPrecision && (customNames == null || !customNames.containsKey(fullRomPath))) {
+      if (useHighPrecision &&
+          (customNames == null || !customNames.containsKey(fullRomPath))) {
         _log("🔍 Calculando hash: $gameSlug...");
         try {
-          final identified = await ScreenScraperService.identifyFile(fullRomPath);
+          final identified = await ScreenScraperService.identifyFile(
+            fullRomPath,
+            systemId: screenScraperId,
+          );
           if (identified != null && identified.name != null) {
             gameName = identified.name!;
             _log("✨ Identificado: $gameName");
@@ -189,7 +265,9 @@ system:
 
       // 1. Evitar duplicados de formato en la misma carpeta
       if (processedSlugs.contains(gameSlug)) {
-        _log("⏩ Saltando formato duplicado: $gameSlug (${p.extension(f.path)})");
+        _log(
+          "⏩ Saltando formato duplicado: $gameSlug (${p.extension(f.path)})",
+        );
         continue;
       }
       processedSlugs.add(gameSlug);
@@ -201,17 +279,25 @@ system:
       }
 
       final uniqueTime = currentTime + count;
-      final configId = _createLutrisYaml(gameSlug, fullRomPath, uniqueTime, specialConfig: specialConfig);
+      final configId = _createLutrisYaml(
+        gameSlug,
+        fullRomPath,
+        uniqueTime,
+        specialConfig: specialConfig,
+      );
 
       try {
-        db.execute('''
+        db.execute(
+          '''
           INSERT INTO games (
               name, slug, runner, executable, directory, configpath, 
               installed, installed_at, platform, lastplayed,
               has_custom_banner, has_custom_icon, has_custom_coverart_big, playtime
           )
           VALUES (?, ?, ?, NULL, NULL, ?, 1, ?, ?, 0, 0, 0, 0, 0)
-        ''', [gameName, gameSlug, runner, configId, uniqueTime, platformName]);
+        ''',
+          [gameName, gameSlug, runner, configId, uniqueTime, platformName],
+        );
 
         count++;
         final progress = (i + 1) / totalFiles;
