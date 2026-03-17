@@ -40,6 +40,7 @@ rm -rf AppDir && mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applica
 
 # 4. Copiar bundle de Flutter
 cp -r $BUNDLE_DIR/* AppDir/usr/bin/
+chmod +x AppDir/usr/bin/$APP_NAME
 
 # 5. SQLITE: Inyectar en lib/
 SQLITE_LIB="/usr/lib/x86_64-linux-gnu/libsqlite3.so.0"
