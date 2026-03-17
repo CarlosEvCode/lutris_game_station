@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.5.1...v1.5.2) (2026-03-17)
+
+
+### Bug Fixes
+
+* asegurar permisos de ejecución del binario en el AppImage ([60c39c0](https://github.com/CarlosEvCode/lutris_game_station/commit/60c39c056ab03138e09d98119cca76f6f08ce380))
+
 ## [1.5.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.5.0...v1.5.1) (2026-03-17)
 
 
