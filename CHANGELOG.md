@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.6...v1.5.0) (2026-03-17)
+
+
+### Features
+
+* implementar detección de ROMs por hash e integración con ScreenScraper ([fba1d0a](https://github.com/CarlosEvCode/lutris_game_station/commit/fba1d0a394d9e0fddd23ef2a992a3aef731cb38e))
+* profesionalizar flujo de empaquetado Linux (AppImage, Tarball, Flatpak) ([00f3407](https://github.com/CarlosEvCode/lutris_game_station/commit/00f34077894aea1ec319f1fa89b759cb3c940f4c))
+
 ## [1.4.6](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.5...v1.4.6) (2026-03-15)
 
 
