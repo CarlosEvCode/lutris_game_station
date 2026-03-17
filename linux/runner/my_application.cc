@@ -137,6 +137,9 @@ static void my_application_init(MyApplication* self) {}
 
 MyApplication* my_application_new(const gchar* application_id, GApplicationFlags flags) {
   g_set_prgname(application_id);
+  
+  // ESTA LÍNEA ES LA SOLUCIÓN: Establece el nombre del icono por defecto para todas las ventanas
+  gtk_window_set_default_icon_name(application_id);
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", application_id,

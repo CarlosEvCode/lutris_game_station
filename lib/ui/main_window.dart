@@ -7,7 +7,6 @@ import '../core/metadata/metadata_downloader.dart';
 import '../core/metadata/screenscraper_service.dart';
 import '../core/lutris/config_manager.dart';
 import 'visual_manager_screen.dart';
-import 'rom_scanner_screen.dart';
 
 class MainWindow extends StatefulWidget {
   const MainWindow({Key? key}) : super(key: key);

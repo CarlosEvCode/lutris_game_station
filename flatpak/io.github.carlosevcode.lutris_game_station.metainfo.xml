@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.carlosevcode.lutris_game_station</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Lutris Game Station</name>
+  <summary>A unified station for managing ROMs and visual media in Lutris.</summary>
+  <description>
+    <p>
+      Lutris Game Station helps you organize your game library by managing ROMs
+      and fetching high-quality metadata and artwork from SteamGridDB and ScreenScraper.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.carlosevcode.lutris_game_station.desktop</launchable>
+  <developer_name>CarlosEvCode</developer_name>
+  <url type="homepage">https://github.com/carlosevcode/lutris_game_station</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.4.6" date="2024-03-20" />
+  </releases>
+</component>

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   # -------------------------------------------------------------------
-  # JOB 1: RELEASE PLEASE
+  # JOB 1: RELEASE PLEASE (Detecta si hay que crear una versión)
   # -------------------------------------------------------------------
   release-please:
     runs-on: ubuntu-latest
@@ -28,36 +28,24 @@ jobs:
           path: .
 
   # -------------------------------------------------------------------
-  # JOB 2: CONSTRUIR Y SUBIR APPIMAGE (Contenedor Ubuntu 20.04)
+  # JOB 2: COMPILAR BUNDLE LINUX (Ubuntu 20.04 para compatibilidad)
   # -------------------------------------------------------------------
   build_linux:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    name: Build & Release AppImage
-    runs-on: ubuntu-latest
-    container: ubuntu:20.04
-    env:
-      APP_NAME: lutris_game_station
-      DEBIAN_FRONTEND: noninteractive
-
+    name: Build Linux Bundle
+    runs-on: ubuntu-20.04
     steps:
-      - name: Preparar entorno del contenedor
-        run: |
-          apt-get update
-          apt-get install -y curl git unzip xz-utils libglu1-mesa ca-certificates sudo jq
-
       - name: Checkout del código
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Instalar dependencias de compilación Linux
+      - name: Instalar dependencias de compilación
         run: |
-          apt-get install -y \
-            clang cmake ninja-build lld dpkg-dev \
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
             libgtk-3-dev libblkid-dev liblzma-dev \
-            libgcrypt20-dev libsqlite3-dev pkg-config \
-            imagemagick patchelf libgdk-pixbuf2.0-dev
+            libgcrypt20-dev libsqlite3-dev
 
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
@@ -65,97 +53,58 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extraer versión desde el TAG
-        run: |
-          TAG="${{ needs.release-please.outputs.tag_name }}"
-          TAG=${TAG#v}
-          echo "TAG_VERSION=$TAG" >> $GITHUB_ENV
-
-      - name: Actualizar pubspec.yaml automáticamente
-        run: |
-          CURRENT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
-          BUILD_NUMBER=$(echo $CURRENT_VERSION | cut -d'+' -f2)
-          NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
-          sed -i "s/^version:.*/version: $TAG_VERSION+$NEW_BUILD_NUMBER/" pubspec.yaml
-
-      - name: Commit de actualización de versión
-        run: |
-          git config --global --add safe.directory '*'
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add pubspec.yaml
-          git commit -m "chore: actualizar versión a $TAG_VERSION [skip ci]"
-          git push origin main
-
       - name: Instalar dependencias de Flutter
         run: flutter pub get
 
-      - name: Compilar para Linux (Release)
-        run: flutter build linux --release
-
-      - name: Generar AppImage (Estrategia Maestra V8 - Pulido Final)
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
+      - name: Extraer versión del Tag
         run: |
-          # 1. Descargar herramientas
-          curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          curl -L -o linuxdeploy-plugin-gtk.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
-          curl -L -o appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
-          chmod +x *.AppImage *.sh
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          VERSION=${TAG#v}
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
 
-          # 2. Estructura AppDir
-          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
+      - name: Compilar para Linux (Release con Inyección de Versión)
+        run: |
+          # Inyectamos la versión dinámicamente sin modificar el pubspec.yaml físicamente
+          flutter build linux --release --build-name=$APP_VERSION
 
-          # 3. Copiar bundle de Flutter
-          cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
+      - name: Subir Bundle como Artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-bundle
+          path: build/linux/x64/release/bundle/
 
-          # 4. SOLUCIÓN SQLITE: Inyectar en lib/
-          SQLITE_SRC=$(ldconfig -p | grep libsqlite3.so.0 | head -n1 | awk '{print $4}')
-          [ -z "$SQLITE_SRC" ] && SQLITE_SRC="/usr/lib/x86_64-linux-gnu/libsqlite3.so.0"
-          cp -v "$SQLITE_SRC" AppDir/usr/bin/lib/libsqlite3.so
+  # -------------------------------------------------------------------
+  # JOB 3: EMPAQUETAR (AppImage & Tarball)
+  # -------------------------------------------------------------------
+  package:
+    needs: [release-please, build_linux]
+    name: Package Release
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
 
-          # 5. Fijar RPATH
-          BINARY="AppDir/usr/bin/${{ env.APP_NAME }}"
-          patchelf --set-rpath '$ORIGIN/lib' "$BINARY"
+      - name: Descargar Bundle Artefacto
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-bundle
+          path: build/linux/x64/release/bundle/
 
-          # 6. Desktop e Icono
-          cp linux/${{ env.APP_NAME }}.desktop AppDir/usr/share/applications/
-          convert linux/${{ env.APP_NAME }}.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png || true
+      - name: Instalar herramientas de empaquetado
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf imagemagick libgdk-pixbuf2.0-dev
 
-          # 7. Plugin GTK
-          mkdir -p ./plugins
-          cp linuxdeploy-plugin-gtk.sh ./plugins/linuxdeploy-plugin-gtk
-          export PATH=$PATH:$(pwd)/plugins
-          export LD_LIBRARY_PATH=$(pwd)/AppDir/usr/bin/lib:$LD_LIBRARY_PATH
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
-            --executable "$BINARY" \
-            --desktop-file AppDir/usr/share/applications/${{ env.APP_NAME }}.desktop \
-            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/${{ env.APP_NAME }}.png \
-            --plugin gtk
+      - name: Extraer versión del Tag
+        run: |
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          echo "APP_VERSION=${TAG#v}" >> $GITHUB_ENV
 
-          # 8. LIMPIEZA: Eliminar librerías base que causan warnings o conflictos de temas
-          # libselinux y libdbus suelen dar problemas si se incluyen
-          find AppDir/usr/lib -name "libselinux*" -delete || true
-          find AppDir/usr/lib -name "libdbus*" -delete || true
+      - name: Generar AppImage
+        run: ./scripts/package_appimage.sh ${{ env.APP_VERSION }}
 
-          # 9. AppRun Avanzado (Cursor y Temas)
-          cat > AppDir/AppRun <<'APP_RUN'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "$0")")"
-          # Prioridad a librerías internas para SQLite/Flutter
-          export LD_LIBRARY_PATH="$HERE/usr/bin/lib:$HERE/usr/lib:$LD_LIBRARY_PATH"
-          # Permitir ver iconos y temas del host para el cursor
-          export XDG_DATA_DIRS="$HERE/usr/share:/usr/share:/usr/local/share:$XDG_DATA_DIRS"
-          # Cargar cargadores de imágenes internos
-          export GDK_PIXBUF_MODULE_FILE="$(find "$HERE/usr/lib" -name loaders.cache | head -n 1)"
-          export GSETTINGS_SCHEMA_DIR="$HERE/usr/share/glib-2.0/schemas"
-          exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
-          APP_RUN
-          chmod +x AppDir/AppRun
-
-          # 10. Crear el AppImage final
-          ./appimagetool-x86_64.AppImage --runtime-file runtime-x86_64 AppDir "${{ env.APP_NAME }}-${{ env.TAG_VERSION }}-x86_64.AppImage"
+      - name: Generar Tarball
+        run: ./scripts/package_tarball.sh ${{ env.APP_VERSION }}
 
       - name: Publicar Release en GitHub
         uses: softprops/action-gh-release@v2
@@ -163,5 +112,6 @@ jobs:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             *.AppImage
+            *.tar.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -34,7 +34,19 @@ linux/flutter/generated_plugins.cmake
 *.ipr
 *.iws
 
-# Secrets/API Keys (No incluir archivos .env o con keys)
+# Empaquetado y Artefactos (Nuevos)
+AppDir/
+plugins/
+fake-bin/
+*.AppImage
+*.tar.xz
+linuxdeploy-plugin-gtk.sh
+runtime-x86_64
+appimagetool-x86_64.AppImage
+linuxdeploy-x86_64.AppImage
+
+# Secrets/API Keys
+ (No incluir archivos .env o con keys)
 .env
 api_key.txt
 lib/secrets.dart

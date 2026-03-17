@@ -1,0 +1,50 @@
+app-id: io.github.carlosevcode.lutris_game_station
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: lutris_game_station
+
+# Permisos para el entorno de ejecución
+finish-args:
+  # Gráficos: Wayland y X11 para máxima compatibilidad
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Red: Descarga de metadatos (SteamGridDB, ScreenScraper)
+  - --share=network
+  # Sistema de archivos: Para leer configs de Lutris y ROMs en home
+  - --filesystem=home:ro
+  # Notificaciones:
+  - --talk-name=org.freedesktop.Notifications
+
+modules:
+  - name: lutris-game-station
+    buildsystem: simple
+    build-commands:
+      # Instalación del binario
+      - install -D lutris_game_station /app/bin/lutris_game_station
+      # Instalación de librerías adjuntas (libsqlite3, etc.)
+      - cp -r lib/ /app/bin/
+      # Instalación de assets de Flutter
+      - cp -r data/ /app/bin/
+      # Instalación del Desktop File
+      - install -D io.github.carlosevcode.lutris_game_station.desktop /app/share/applications/io.github.carlosevcode.lutris_game_station.desktop
+      # Instalación del Icono
+      - install -D lutris_game_station.png /app/share/icons/hicolor/512x512/apps/io.github.carlosevcode.lutris_game_station.png
+      # Instalación del Metainfo
+      - install -D io.github.carlosevcode.lutris_game_station.metainfo.xml /app/share/metainfo/io.github.carlosevcode.lutris_game_station.metainfo.xml
+    sources:
+      # Estos sources se usarían al construir el Flatpak final (ej. desde el bundle)
+      - type: file
+        path: ../build/linux/x64/release/bundle/lutris_game_station
+      - type: dir
+        path: ../build/linux/x64/release/bundle/lib
+      - type: dir
+        path: ../build/linux/x64/release/bundle/data
+      - type: file
+        path: ../linux/lutris_game_station.png
+      - type: file
+        path: ./io.github.carlosevcode.lutris_game_station.metainfo.xml
+      - type: file
+        path: ./io.github.carlosevcode.lutris_game_station.desktop

@@ -1,0 +1,34 @@
+# Usamos Ubuntu 22.04 (Jammy) - El estándar actual
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 1. Instalar dependencias esenciales
+RUN apt-get update && apt-get install -y \
+    curl git unzip xz-utils libglu1-mesa ca-certificates sudo \
+    clang lld cmake ninja-build pkg-config libgtk-3-dev \
+    libblkid-dev liblzma-dev libgcrypt20-dev libsqlite3-dev \
+    patchelf imagemagick wget build-essential file
+
+
+# 2. En Ubuntu 22.04, los compiladores estándar ya son compatibles
+RUN ln -sf /usr/bin/ld.lld /usr/bin/ld
+
+# 3. Usuario developer (Mismo ID para evitar problemas de permisos)
+RUN useradd -m -s /bin/bash developer && \
+    echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER developer
+ENV HOME=/home/developer
+WORKDIR $HOME
+
+# 4. Instalar Flutter
+RUN git clone https://github.com/flutter/flutter.git -b stable $HOME/flutter
+ENV PATH="$HOME/flutter/bin:$PATH"
+
+# 5. Pre-descargar artefactos (Más rápido en 22.04)
+RUN flutter config --no-analytics && \
+    flutter precache --linux
+
+WORKDIR /app
+CMD ["./scripts/build_all.sh"]
