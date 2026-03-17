@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.5.0...v1.5.1) (2026-03-17)
+
+
+### Bug Fixes
+
+* forzar DEPLOY_GTK_VERSION=3 para GitHub Actions ([a8f4668](https://github.com/CarlosEvCode/lutris_game_station/commit/a8f466882cafc9c56782266ebec79133f9e2fe29))
+
 ## [1.5.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.4.6...v1.5.0) (2026-03-17)
 
 
