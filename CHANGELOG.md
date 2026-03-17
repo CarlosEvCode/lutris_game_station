@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.5.2...v1.6.0) (2026-03-17)
+
+
+### Features
+
+* añadir alternancia entre vista de cuadrícula y lista en el gestor visual ([f23bb05](https://github.com/CarlosEvCode/lutris_game_station/commit/f23bb052951cc88f473202e97d73de80d577b784))
+* añadir selector interactivo entre Lutris Nativo y Flatpak ([35cd94a](https://github.com/CarlosEvCode/lutris_game_station/commit/35cd94a0fd59c8aff96080dd15a85261a7bc5da4))
+* implementar filtrado de metadatos faltantes y sincronización con el disco ([62226b7](https://github.com/CarlosEvCode/lutris_game_station/commit/62226b77ac92b9f9636262e1dace54253ff6542e))
+* implementar previsualización y selección manual de ROMs antes de la inyección ([4535a57](https://github.com/CarlosEvCode/lutris_game_station/commit/4535a578be0c6782a0a20c08ce505df49fe0c91a))
+* implementar scroll infinito en el gestor visual para mejorar rendimiento ([f05ba94](https://github.com/CarlosEvCode/lutris_game_station/commit/f05ba9491fd712e13c465c3e8f9a3154de94975b))
+* mejoras avanzadas en el inyector (edición de nombres, escaneo recursivo y perfiles de ruta) ([85053ed](https://github.com/CarlosEvCode/lutris_game_station/commit/85053ed635be1d91a0df9428fcf1521beb94f82f))
+
+
+### Bug Fixes
+
+* refrescar gestor visual automáticamente al cambiar modo de Lutris ([eb2cc14](https://github.com/CarlosEvCode/lutris_game_station/commit/eb2cc14475efa2d0b55744b7aa2bf74a2b0876ab))
+
 ## [1.5.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.5.1...v1.5.2) (2026-03-17)
 
 
