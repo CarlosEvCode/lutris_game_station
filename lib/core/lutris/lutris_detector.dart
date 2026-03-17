@@ -2,7 +2,7 @@ import 'dart:io';
 
 class LutrisDetector {
   final bool interactive;
-  final String? forceMode;
+  String? _forcedMode;
 
   String? mode;
   String? dbPath;
@@ -16,7 +16,21 @@ class LutrisDetector {
   static final String pathNativeDb = '$_homeDir/.local/share/lutris/pga.db';
   static final String pathFlatpakDb = '$_homeDir/.var/app/net.lutris.Lutris/data/lutris/pga.db';
 
-  LutrisDetector({this.interactive = true, this.forceMode}) {
+  LutrisDetector({this.interactive = true, String? forceMode}) {
+    _forcedMode = forceMode;
+    _detectAndConfigure();
+  }
+
+  /// Returns a list of available Lutris installation modes detected on the system.
+  List<String> getAvailableModes() {
+    List<String> modes = [];
+    if (File(pathNativeDb).existsSync()) modes.add("NATIVO");
+    if (File(pathFlatpakDb).existsSync()) modes.add("FLATPAK");
+    return modes;
+  }
+
+  void setMode(String newMode) {
+    _forcedMode = newMode;
     _detectAndConfigure();
   }
 
@@ -24,21 +38,18 @@ class LutrisDetector {
     final nativeExists = File(pathNativeDb).existsSync();
     final flatpakExists = File(pathFlatpakDb).existsSync();
 
-    if (forceMode != null) {
-      if (forceMode!.toLowerCase() == "flatpak" && flatpakExists) {
+    if (_forcedMode != null) {
+      if (_forcedMode!.toUpperCase() == "FLATPAK" && flatpakExists) {
         _configureFlatpak();
         return;
-      } else if (forceMode!.toLowerCase() == "native" && nativeExists) {
+      } else if (_forcedMode!.toUpperCase() == "NATIVO" && nativeExists) {
         _configureNative();
         return;
       }
     }
 
-    if (nativeExists && flatpakExists) {
-      // For now, if both exist, maybe prefer Native or ask. In GUI we'll just pass forceMode.
-      // If none passed, prefer flatpak
-      _configureFlatpak();
-    } else if (flatpakExists) {
+    // Default priority logic if no mode is forced
+    if (flatpakExists) {
       _configureFlatpak();
     } else if (nativeExists) {
       _configureNative();

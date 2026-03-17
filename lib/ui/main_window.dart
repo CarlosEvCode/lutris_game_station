@@ -19,6 +19,7 @@ class _MainWindowState extends State<MainWindow> {
   int _currentIndex = 0;
   LutrisDetector? _detector;
   Map<String, String?>? _lutrisPaths;
+  List<String> _availableLutrisModes = [];
   
   PlatformInfo? _selectedPlatform;
   List<String> _selectedExtensions = [];
@@ -92,6 +93,8 @@ class _MainWindowState extends State<MainWindow> {
     try {
       _detector = LutrisDetector(interactive: false);
       _lutrisPaths = _detector?.getPaths();
+      _availableLutrisModes = _detector?.getAvailableModes() ?? [];
+      
       if (_lutrisPaths?['mode'] == null || _lutrisPaths!['mode']!.isEmpty) {
         _log("⚠️ No se detectó ninguna instalación de Lutris.");
       } else {
@@ -125,6 +128,17 @@ class _MainWindowState extends State<MainWindow> {
       _logText = '';
       _progress = 0.0;
     });
+  }
+
+  void _switchLutrisMode(String newMode) {
+    if (_detector == null || _lutrisPaths?['mode'] == newMode) return;
+    
+    setState(() {
+      _detector!.setMode(newMode);
+      _lutrisPaths = _detector!.getPaths();
+    });
+    
+    _log("🔄 Cambiado a Lutris: $newMode");
   }
 
   Future<void> _browseFolder() async {
@@ -363,26 +377,7 @@ class _MainWindowState extends State<MainWindow> {
       appBar: AppBar(
         title: const Text('Lutris Game Station', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
         actions: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white10,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.computer, size: 16, color: _lutrisPaths != null ? Colors.green : Colors.red),
-                const SizedBox(width: 8),
-                Text(
-                  _lutrisPaths != null ? _lutrisPaths!['mode']! : "No detectado",
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
+          _buildLutrisSelector(),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _showConfigDialog,
@@ -411,6 +406,73 @@ class _MainWindowState extends State<MainWindow> {
       default:
         return _buildInjectorView();
     }
+  }
+
+  Widget _buildLutrisSelector() {
+    final currentMode = _lutrisPaths != null ? _lutrisPaths!['mode']! : "No detectado";
+    final isDetected = _lutrisPaths != null;
+
+    if (_availableLutrisModes.length <= 1) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.computer, size: 16, color: isDetected ? Colors.green : Colors.red),
+            const SizedBox(width: 8),
+            Text(
+              currentMode,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: PopupMenuButton<String>(
+        tooltip: 'Cambiar versión de Lutris',
+        onSelected: _switchLutrisMode,
+        offset: const Offset(0, 45),
+        itemBuilder: (context) => _availableLutrisModes.map((mode) => PopupMenuItem(
+          value: mode,
+          child: Row(
+            children: [
+              Icon(Icons.check, color: currentMode == mode ? Colors.green : Colors.transparent),
+              const SizedBox(width: 8),
+              Text(mode),
+            ],
+          ),
+        )).toList(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.blue.withOpacity(0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.swap_horiz, size: 16, color: Colors.blue),
+              const SizedBox(width: 8),
+              Text(
+                currentMode,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+              ),
+              const Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildVisualManagerView() {
