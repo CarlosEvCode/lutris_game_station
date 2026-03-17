@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   # -------------------------------------------------------------------
-  # JOB 1: RELEASE PLEASE (Detecta si hay que crear una versión)
+  # JOB 1: RELEASE PLEASE
   # -------------------------------------------------------------------
   release-please:
     runs-on: ubuntu-latest
@@ -28,13 +28,13 @@ jobs:
           path: .
 
   # -------------------------------------------------------------------
-  # JOB 2: COMPILAR BUNDLE LINUX (Ubuntu 20.04 para compatibilidad)
+  # JOB 2: COMPILAR BUNDLE LINUX (Ubuntu 22.04 para compatibilidad total)
   # -------------------------------------------------------------------
   build_linux:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     name: Build Linux Bundle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout del código
         uses: actions/checkout@v4
@@ -43,9 +43,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            clang cmake ninja-build pkg-config \
+            clang lld cmake ninja-build pkg-config \
             libgtk-3-dev libblkid-dev liblzma-dev \
-            libgcrypt20-dev libsqlite3-dev
+            libgcrypt20-dev libsqlite3-dev build-essential
 
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
@@ -62,9 +62,9 @@ jobs:
           VERSION=${TAG#v}
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Compilar para Linux (Release con Inyección de Versión)
+      - name: Compilar para Linux (Release)
         run: |
-          # Inyectamos la versión dinámicamente sin modificar el pubspec.yaml físicamente
+          # Usamos el mismo ID de aplicación que en el código C++
           flutter build linux --release --build-name=$APP_VERSION
 
       - name: Subir Bundle como Artefacto
@@ -79,7 +79,7 @@ jobs:
   package:
     needs: [release-please, build_linux]
     name: Package Release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout del código
         uses: actions/checkout@v4
