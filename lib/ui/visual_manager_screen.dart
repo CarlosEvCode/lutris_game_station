@@ -42,6 +42,17 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     _loadPlatforms();
   }
 
+  @override
+  void didUpdateWidget(covariant VisualManagerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si la ruta de la base de datos cambió (ej: de Nativo a Flatpak)
+    if (oldWidget.lutrisPaths['db_path'] != widget.lutrisPaths['db_path']) {
+      _repo = GamesRepository(widget.lutrisPaths['db_path']!);
+      _imageVersion++; // Forzar que las imágenes se refresquen
+      _loadGames();
+    }
+  }
+
   void _loadPlatforms() {
     _platforms = PlatformRegistry.getAllPlatforms();
     if (_platforms.isNotEmpty) {
