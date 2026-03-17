@@ -83,5 +83,20 @@ class ConfigManager {
     await _writeConfig(config);
   }
 
+  // Platform Folder Paths
+  static Future<String> getPlatformPath(String platformId) async {
+    final config = await _readConfig();
+    final paths = config['platform_paths'] as Map<String, dynamic>? ?? {};
+    return paths[platformId] as String? ?? '';
+  }
+
+  static Future<void> savePlatformPath(String platformId, String path) async {
+    final config = await _readConfig();
+    final paths = config['platform_paths'] as Map<String, dynamic>? ?? {};
+    paths[platformId] = path;
+    config['platform_paths'] = paths;
+    await _writeConfig(config);
+  }
+
   // Puedes añadir más configuraciones aquí en el futuro
 }

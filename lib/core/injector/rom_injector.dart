@@ -113,7 +113,8 @@ system:
     bool cleanOld = true, 
     Map<String, dynamic>? specialConfig,
     bool useHighPrecision = false,
-    List<File>? customFiles, // Nuevo parámetro
+    List<File>? customFiles,
+    Map<String, String>? customNames,
   }) async {
     final folder = Directory(romFolder);
     if (!folder.existsSync()) {
@@ -166,11 +167,12 @@ system:
     for (int i = 0; i < romFiles.length; i++) {
       final f = romFiles[i];
       String gameSlug = p.basenameWithoutExtension(f.path);
-      String gameName = gameSlug;
+      String gameName = customNames?[f.path] ?? gameSlug;
       final fullRomPath = f.path;
 
       // --- ALTA PRECISIÓN (HASH) ---
-      if (useHighPrecision) {
+      // Solo buscamos si el usuario no ha editado el nombre manualmente
+      if (useHighPrecision && (customNames == null || !customNames.containsKey(fullRomPath))) {
         _log("🔍 Calculando hash: $gameSlug...");
         try {
           final identified = await ScreenScraperService.identifyFile(fullRomPath);

@@ -48,6 +48,7 @@ class _MainWindowState extends State<MainWindow> {
   bool _isScanning = false;
   bool _cleanOldGames = true;
   bool _useHighPrecision = false;
+  bool _isRecursive = false;
   bool _isProcessing = false;
   
   String _logText = 'Listo. Selecciona plataforma y carpeta de ROMs.\n';
@@ -96,7 +97,7 @@ class _MainWindowState extends State<MainWindow> {
     if (ssDevId.isNotEmpty) _log("🛠️ ScreenScraper Dev Keys detectadas.");
   }
 
-  void _onPlatformChanged(PlatformInfo? val) {
+  void _onPlatformChanged(PlatformInfo? val) async {
     setState(() {
       _selectedPlatform = val;
       if (val != null) {
@@ -104,6 +105,16 @@ class _MainWindowState extends State<MainWindow> {
         _previewItems = []; // Limpiar previa si cambia plataforma
       }
     });
+
+    if (val != null) {
+      final savedPath = await ConfigManager.getPlatformPath(val.platformId);
+      if (savedPath.isNotEmpty) {
+        setState(() {
+          _romFolder = savedPath;
+        });
+        _scanFolder();
+      }
+    }
   }
 
   void _detectLutris() {
@@ -158,6 +169,36 @@ class _MainWindowState extends State<MainWindow> {
     _log("🔄 Cambiado a Lutris: $newMode");
   }
 
+  void _editItemName(InjectionItem item) {
+    final controller = TextEditingController(text: item.displayName);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Nombre del Juego'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nombre en Lutris',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                item.displayName = controller.text.trim();
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _browseFolder() async {
     final String? folderPath = await getDirectoryPath();
     if (folderPath != null) {
@@ -165,6 +206,9 @@ class _MainWindowState extends State<MainWindow> {
         _romFolder = folderPath;
         _previewItems = [];
       });
+      if (_selectedPlatform != null) {
+        await ConfigManager.savePlatformPath(_selectedPlatform!.platformId, folderPath);
+      }
       _scanFolder();
     }
   }
@@ -179,7 +223,7 @@ class _MainWindowState extends State<MainWindow> {
 
     try {
       final dir = Directory(_romFolder);
-      final List<FileSystemEntity> entities = await dir.list().toList();
+      final List<FileSystemEntity> entities = await dir.list(recursive: _isRecursive).toList();
       
       final List<InjectionItem> detected = [];
       for (var entity in entities) {
@@ -397,6 +441,11 @@ class _MainWindowState extends State<MainWindow> {
             .map((item) => File(item.filePath))
             .toList();
 
+        final Map<String, String> customNames = {
+          for (var item in _previewItems.where((i) => i.isSelected))
+            item.filePath: item.displayName
+        };
+
         if (selectedFiles.isEmpty && _previewItems.isNotEmpty) {
           _log("⚠️ No hay archivos seleccionados para inyectar.");
           setState(() => _isProcessing = false);
@@ -417,6 +466,7 @@ class _MainWindowState extends State<MainWindow> {
           cleanOld: _cleanOldGames,
           useHighPrecision: _useHighPrecision,
           customFiles: selectedFiles.isNotEmpty ? selectedFiles : null,
+          customNames: customNames,
         );
       }
       
@@ -660,6 +710,18 @@ class _MainWindowState extends State<MainWindow> {
                   },
                   secondary: Icon(Icons.fingerprint, color: _useHighPrecision ? Colors.teal : Colors.grey),
                 ),
+                SwitchListTile(
+                  title: const Text('Escaneo Recursivo', style: TextStyle(fontSize: 14)),
+                  subtitle: const Text('Busca ROMs dentro de subcarpetas', style: TextStyle(fontSize: 12)),
+                  value: _isRecursive,
+                  onChanged: _isProcessing ? null : (val) {
+                    setState(() { 
+                      _isRecursive = val; 
+                      _scanFolder(); // Re-escanear al cambiar
+                    });
+                  },
+                  secondary: Icon(Icons.folder_copy, color: _isRecursive ? Colors.blue : Colors.grey),
+                ),
               ],
             ),
           ),
@@ -798,7 +860,11 @@ class _MainWindowState extends State<MainWindow> {
                       title: Text(item.displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                       subtitle: Text(p.basename(item.filePath), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                       dense: true,
-                      secondary: const Icon(Icons.videogame_asset_outlined, size: 20),
+                      secondary: IconButton(
+                        icon: const Icon(Icons.edit, size: 18),
+                        onPressed: () => _editItemName(item),
+                        tooltip: 'Editar nombre',
+                      ),
                     );
                   },
                 ),
