@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.1.0...v2.1.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* embed developer credentials at compile time via --dart-define ([b145bee](https://github.com/CarlosEvCode/lutris_game_station/commit/b145bee69c60df79ba1c95796c6992b9043e6ba5))
+
 ## [2.1.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.0.0...v2.1.0) (2026-03-18)
 
 
