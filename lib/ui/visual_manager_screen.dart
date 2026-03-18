@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/lutris/games_repository.dart';
 import '../platforms/platform_registry.dart';
-import 'steamgriddb_visual_selector.dart';
+import 'game_detail_screen.dart';
 
 class VisualManagerScreen extends StatefulWidget {
   final Map<String, String?> lutrisPaths;
@@ -903,16 +903,10 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   }
 
   void _editMetadata(Game game) {
-    SteamGridDBVisualSelector.show(
-      context,
-      game,
-      widget.lutrisPaths,
-      widget.apiKey,
-      () {
-        setState(() => _imageVersion++);
-        _refreshList();
-      },
-    );
+    GameDetailScreen.show(context, game, widget.lutrisPaths, widget.apiKey, () {
+      setState(() => _imageVersion++);
+      _refreshList();
+    });
   }
 
   Widget _buildEmptyState() {

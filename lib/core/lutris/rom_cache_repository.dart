@@ -15,6 +15,15 @@ class RomCacheEntry {
   final DateTime cacheTime;
   final bool isIdentified;
 
+  // URLs de media de ScreenScraper
+  final String? coverUrl; // box-2D
+  final String? cover3dUrl; // box-3D
+  final String? bannerUrl; // fanart
+  final String? logoUrl; // wheel
+  final String? synopsis; // Sinopsis del juego
+  final String? releaseDate; // Fecha de lanzamiento
+  final String? developer; // Desarrollador
+
   RomCacheEntry({
     required this.filePath,
     required this.fileSize,
@@ -26,6 +35,13 @@ class RomCacheEntry {
     required this.lastModified,
     required this.cacheTime,
     required this.isIdentified,
+    this.coverUrl,
+    this.cover3dUrl,
+    this.bannerUrl,
+    this.logoUrl,
+    this.synopsis,
+    this.releaseDate,
+    this.developer,
   });
 
   factory RomCacheEntry.fromMap(Map<String, dynamic> map) {
@@ -42,6 +58,13 @@ class RomCacheEntry {
       ),
       cacheTime: DateTime.fromMillisecondsSinceEpoch(map['cache_time'] as int),
       isIdentified: (map['is_identified'] as int) == 1,
+      coverUrl: map['cover_url'] as String?,
+      cover3dUrl: map['cover_3d_url'] as String?,
+      bannerUrl: map['banner_url'] as String?,
+      logoUrl: map['logo_url'] as String?,
+      synopsis: map['synopsis'] as String?,
+      releaseDate: map['release_date'] as String?,
+      developer: map['developer'] as String?,
     );
   }
 
@@ -57,6 +80,13 @@ class RomCacheEntry {
       'last_modified': lastModified.millisecondsSinceEpoch,
       'cache_time': cacheTime.millisecondsSinceEpoch,
       'is_identified': isIdentified ? 1 : 0,
+      'cover_url': coverUrl,
+      'cover_3d_url': cover3dUrl,
+      'banner_url': bannerUrl,
+      'logo_url': logoUrl,
+      'synopsis': synopsis,
+      'release_date': releaseDate,
+      'developer': developer,
     };
   }
 }
@@ -100,9 +130,53 @@ class RomCacheRepository {
         system_id TEXT,
         last_modified INTEGER NOT NULL,
         cache_time INTEGER NOT NULL,
-        is_identified INTEGER NOT NULL DEFAULT 0
+        is_identified INTEGER NOT NULL DEFAULT 0,
+        cover_url TEXT,
+        cover_3d_url TEXT,
+        banner_url TEXT,
+        logo_url TEXT,
+        synopsis TEXT,
+        release_date TEXT,
+        developer TEXT
       )
     ''');
+
+    // Migración: Agregar columnas de media si no existen
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN cover_url TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN cover_3d_url TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN banner_url TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN logo_url TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN synopsis TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN release_date TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
+    try {
+      _db.execute('ALTER TABLE rom_cache ADD COLUMN developer TEXT');
+    } catch (e) {
+      // Columna ya existe, ignorar
+    }
 
     // Crear índices separadamente
     _db.execute(
@@ -173,6 +247,13 @@ class RomCacheRepository {
     String? identifiedName,
     String? systemId,
     bool isIdentified = false,
+    String? coverUrl,
+    String? cover3dUrl,
+    String? bannerUrl,
+    String? logoUrl,
+    String? synopsis,
+    String? releaseDate,
+    String? developer,
   }) {
     try {
       final entry = RomCacheEntry(
@@ -186,14 +267,23 @@ class RomCacheRepository {
         lastModified: lastModified,
         cacheTime: DateTime.now(),
         isIdentified: isIdentified,
+        coverUrl: coverUrl,
+        cover3dUrl: cover3dUrl,
+        bannerUrl: bannerUrl,
+        logoUrl: logoUrl,
+        synopsis: synopsis,
+        releaseDate: releaseDate,
+        developer: developer,
       );
 
       _db.execute(
         '''
         INSERT OR REPLACE INTO rom_cache (
           file_path, file_size, sha1, md5, crc32, identified_name,
-          system_id, last_modified, cache_time, is_identified
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          system_id, last_modified, cache_time, is_identified,
+          cover_url, cover_3d_url, banner_url, logo_url,
+          synopsis, release_date, developer
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''',
         [
           entry.filePath,
@@ -206,6 +296,13 @@ class RomCacheRepository {
           entry.lastModified.millisecondsSinceEpoch,
           entry.cacheTime.millisecondsSinceEpoch,
           entry.isIdentified ? 1 : 0,
+          entry.coverUrl,
+          entry.cover3dUrl,
+          entry.bannerUrl,
+          entry.logoUrl,
+          entry.synopsis,
+          entry.releaseDate,
+          entry.developer,
         ],
       );
     } catch (e) {
@@ -227,6 +324,46 @@ class RomCacheRepository {
       };
     } catch (e) {
       return {'totalEntries': 0, 'identifiedEntries': 0};
+    }
+  }
+
+  /// Busca información de ScreenScraper por nombre del juego
+  RomCacheEntry? findByGameName(String gameName) {
+    try {
+      // Buscar por nombre exacto
+      final exactResult = _db.select(
+        'SELECT * FROM rom_cache WHERE identified_name = ? AND is_identified = 1',
+        [gameName],
+      );
+
+      if (exactResult.isNotEmpty) {
+        final cached = RomCacheEntry.fromMap(exactResult.first);
+
+        // Verificar que el cache no haya expirado
+        if (DateTime.now().difference(cached.cacheTime) <= _cacheTtl) {
+          return cached;
+        }
+      }
+
+      // Buscar por nombre similar (contiene)
+      final similarResult = _db.select(
+        'SELECT * FROM rom_cache WHERE identified_name LIKE ? AND is_identified = 1',
+        ['%$gameName%'],
+      );
+
+      if (similarResult.isNotEmpty) {
+        final cached = RomCacheEntry.fromMap(similarResult.first);
+
+        // Verificar que el cache no haya expirado
+        if (DateTime.now().difference(cached.cacheTime) <= _cacheTtl) {
+          return cached;
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print('⚠️ Error buscando por nombre: $e');
+      return null;
     }
   }
 

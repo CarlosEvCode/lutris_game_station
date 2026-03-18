@@ -155,6 +155,14 @@ class RomInjector {
           identifiedName: finalName,
           systemId: screenScraperId,
           isIdentified: wasIdentified,
+          // URLs de media de ScreenScraper
+          coverUrl: identified?.media['cover'],
+          cover3dUrl: identified?.media['cover_3d'],
+          bannerUrl: identified?.media['banner'],
+          logoUrl: identified?.media['logo'],
+          synopsis: identified?.synopsis,
+          releaseDate: identified?.releaseDate,
+          developer: identified?.developer,
         );
       }
 
