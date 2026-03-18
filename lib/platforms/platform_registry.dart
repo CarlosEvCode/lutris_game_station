@@ -91,7 +91,8 @@ class PlatformRegistry {
       platformId: '3ds',
       platformName: 'Nintendo 3DS',
       runner: 'citra',
-      extensions: ['.cci', '.3ds', '.3dsx'],
+      extensions: ['.3ds', '.cia', '.cci'],
+      extensionPriority: ['.3ds', '.cia', '.cci'],
       screenScraperId: '17',
     );
   }
