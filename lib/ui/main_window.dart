@@ -6,6 +6,7 @@ import '../core/injector/rom_injector.dart';
 import '../core/metadata/metadata_downloader.dart';
 import '../core/metadata/screenscraper_service.dart';
 import '../core/lutris/config_manager.dart';
+import '../core/lutris/rom_cache_repository.dart';
 import 'visual_manager_screen.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
@@ -48,6 +49,8 @@ class _MainWindowState extends State<MainWindow> {
   bool _isScanning = false;
   bool _cleanOldGames = true;
   bool _useHighPrecision = false;
+  bool _reuseIdentification =
+      true; // Nuevo toggle para reutilizar identificación
   bool _isRecursive = false;
   bool _isProcessing = false;
 
@@ -296,17 +299,47 @@ class _MainWindowState extends State<MainWindow> {
     }
   }
 
-  Future<void> _refreshApiStats() async {
+  DateTime? _lastQuotaFetch;
+  static const Duration _quotaCacheDuration = Duration(minutes: 5);
+
+  Future<void> _refreshApiStats({bool force = false}) async {
     final stats = ScreenScraperService.getStats();
-    final quota = await ScreenScraperService.getQuota();
+
+    // Obtener estadísticas del cache ROM
+    Map<String, dynamic> romCacheStats = {};
+    try {
+      final romCache = RomCacheRepository();
+      romCacheStats = romCache.getStats();
+      romCache.dispose();
+    } catch (e) {
+      romCacheStats = {'totalEntries': 0, 'identifiedEntries': 0};
+    }
+
+    ScreenScraperQuota? quota;
+    final now = DateTime.now();
+    final shouldFetchQuota =
+        force ||
+        _lastQuotaFetch == null ||
+        now.difference(_lastQuotaFetch!) > _quotaCacheDuration;
+
+    if (shouldFetchQuota) {
+      quota = await ScreenScraperService.getQuota();
+      _lastQuotaFetch = DateTime.now();
+    } else {
+      quota = ScreenScraperService.currentQuota;
+    }
+
     setState(() {
       _apiStats = {
         ...stats,
-        if (quota != null) ...{
-          'requestsToday': quota.requestsToday,
-          'maxRequestsPerDay': quota.maxRequestsPerDay,
-          'remainingToday': quota.remainingToday,
-        },
+        ...romCacheStats,
+        'requestsToday':
+            quota?.requestsToday ?? stats['lastKnownQuota']?['requestsToday'],
+        'maxRequestsPerDay':
+            quota?.maxRequestsPerDay ?? stats['lastKnownQuota']?['maxPerDay'],
+        'remainingToday':
+            quota?.remainingToday ?? stats['lastKnownQuota']?['remaining'],
+        'lastQuotaFetch': _lastQuotaFetch?.toIso8601String(),
       };
     });
   }
@@ -549,6 +582,7 @@ class _MainWindowState extends State<MainWindow> {
         await injector.injectRoms(
           cleanOld: _cleanOldGames,
           useHighPrecision: _useHighPrecision,
+          reuseIdentification: _reuseIdentification,
           customFiles: selectedFiles.isNotEmpty ? selectedFiles : null,
           customNames: customNames,
         );
@@ -940,6 +974,15 @@ class _MainWindowState extends State<MainWindow> {
           icon: Icons.fingerprint,
           iconColor: _useHighPrecision ? Colors.teal : null,
         ),
+        if (_useHighPrecision)
+          _buildCompactCheckbox(
+            'Reutilizar identificación previa',
+            'Evitar recalcular hashes ya identificados',
+            _reuseIdentification,
+            (val) => setState(() => _reuseIdentification = val ?? false),
+            icon: Icons.cached,
+            iconColor: _reuseIdentification ? Colors.orange : null,
+          ),
         _buildCompactCheckbox(
           'Escaneo recursivo',
           'Incluir subcarpetas',
@@ -1038,9 +1081,30 @@ class _MainWindowState extends State<MainWindow> {
                     color: Colors.grey,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'API Stats',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Text(
+                          'API Stats',
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                        if (_showApiStats)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.refresh,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 24,
+                              minHeight: 24,
+                            ),
+                            tooltip: 'Actualizar cuota',
+                            onPressed: () => _refreshApiStats(force: true),
+                          ),
+                      ],
+                    ),
                   ),
                   const Spacer(),
                   Icon(
@@ -1056,11 +1120,47 @@ class _MainWindowState extends State<MainWindow> {
                   'Requests hoy',
                   '${_apiStats!['requestsToday'] ?? '?'}/${_apiStats!['maxRequestsPerDay'] ?? '?'}',
                 ),
-                _buildStatRow('Cache hits', '${_apiStats!['cacheHits'] ?? 0}'),
-                _buildStatRow('Cache size', '${_apiStats!['cacheSize'] ?? 0}'),
+                if (_apiStats!['lastQuotaFetch'] != null)
+                  _buildStatRow(
+                    'Quota actualizada',
+                    _apiStats!['lastQuotaFetch']!
+                        .toString()
+                        .replaceFirst('T', ' ')
+                        .split('.')
+                        .first,
+                  ),
                 _buildStatRow(
-                  'Total requests',
-                  '${_apiStats!['totalRequests'] ?? 0}',
+                  'Cache RAM hits',
+                  '${_apiStats!['memoryCacheHits'] ?? 0}',
+                ),
+                _buildStatRow(
+                  'Cache disco hits',
+                  '${_apiStats!['diskCacheHits'] ?? 0}',
+                ),
+                _buildStatRow(
+                  'Fallos registrados',
+                  '${_apiStats!['failedLookups'] ?? 0}',
+                ),
+                _buildStatRow(
+                  'Cache RAM size',
+                  '${_apiStats!['cacheSize'] ?? 0}',
+                ),
+                _buildStatRow(
+                  'Entradas disco',
+                  '${_apiStats!['diskCacheEntries'] ?? 0}',
+                ),
+                _buildStatRow(
+                  'Requests/min disponibles',
+                  '${_apiStats!['availableRequestsNow'] ?? 0}',
+                ),
+                const Divider(height: 16, color: Colors.grey),
+                _buildStatRow(
+                  'ROMs en cache',
+                  '${_apiStats!['totalEntries'] ?? 0}',
+                ),
+                _buildStatRow(
+                  'ROMs identificadas',
+                  '${_apiStats!['identifiedEntries'] ?? 0}',
                 ),
               ],
               if (_showApiStats && _apiStats == null) ...[

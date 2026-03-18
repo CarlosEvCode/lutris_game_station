@@ -3,6 +3,8 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../platforms/platform_registry.dart';
 import 'package:path/path.dart' as p;
 import '../metadata/screenscraper_service.dart';
+import '../lutris/rom_cache_repository.dart';
+import '../metadata/hash_service.dart';
 
 class RomInjector {
   final Map<String, String?> lutrisPaths;
@@ -19,6 +21,7 @@ class RomInjector {
   late final String platformName;
   late final bool disableRuntime;
   late final String? screenScraperId;
+  late final RomCacheRepository _romCache;
 
   RomInjector({
     required this.lutrisPaths,
@@ -38,6 +41,7 @@ class RomInjector {
     platformName = platformInfo.platformName;
     disableRuntime = platformInfo.disableRuntime;
     screenScraperId = platformInfo.screenScraperId;
+    _romCache = RomCacheRepository();
   }
 
   void _log(String message, [double? progress]) {
@@ -45,6 +49,136 @@ class RomInjector {
       progressCallback!(message, progress);
     } else {
       print(message);
+    }
+  }
+
+  /// Valida si un archivo necesita procesamiento de hash
+  /// Retorna true si necesita hash, false si puede reutilizar cache
+  bool _shouldCalculateHash(
+    String filePath, {
+    bool reuseIdentification = true,
+  }) {
+    if (!reuseIdentification) return true;
+
+    // Early exit por extensión - verificar que sea válida antes de hacer hash
+    final ext = p.extension(filePath).toLowerCase();
+    if (!extensions.contains(ext)) {
+      _log("⏩ Extensión no válida para $platformName: $ext");
+      return false;
+    }
+
+    final cached = _romCache.shouldProcessRom(filePath);
+    if (cached != null && cached.isIdentified) {
+      _log(
+        "📦 Usando identificación previa: ${cached.identifiedName ?? p.basenameWithoutExtension(filePath)}",
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Obtiene el nombre identificado desde cache o calcula uno nuevo
+  Future<String> _getIdentifiedName(
+    String filePath,
+    String fallbackName, {
+    bool useHighPrecision = false,
+    bool reuseIdentification = true,
+  }) async {
+    final cached = reuseIdentification
+        ? _romCache.shouldProcessRom(filePath)
+        : null;
+
+    // Si tenemos cache válido, usarlo
+    if (cached != null && cached.identifiedName != null) {
+      return cached.identifiedName!;
+    }
+
+    // Si no queremos alta precisión o no tenemos systemId, usar nombre de archivo
+    if (!useHighPrecision || screenScraperId == null) {
+      // Guardar en cache como no identificado
+      if (reuseIdentification) {
+        final file = File(filePath);
+        if (file.existsSync()) {
+          final stat = file.statSync();
+          _romCache.cacheRomInfo(
+            filePath: filePath,
+            fileSize: stat.size,
+            lastModified: stat.modified,
+            identifiedName: fallbackName,
+            systemId: screenScraperId,
+            isIdentified: false,
+          );
+        }
+      }
+      return fallbackName;
+    }
+
+    // Calcular hash e identificar con ScreenScraper
+    try {
+      _log("🔍 Identificando con alta precisión: $fallbackName...");
+
+      final file = File(filePath);
+      final stat = file.statSync();
+      final hashes = await HashService.calculateHashes(filePath);
+
+      final identified = await ScreenScraperService.identifyGameByHash(
+        sha1: hashes.sha1,
+        md5: hashes.md5,
+        crc: hashes.crc32,
+        fileSize: stat.size,
+        fileName: p.basename(filePath),
+        systemId: screenScraperId!,
+      );
+
+      String finalName;
+      bool wasIdentified = false;
+
+      if (identified != null && identified.name != null) {
+        finalName = identified.name!;
+        wasIdentified = true;
+        _log("✨ Identificado: $finalName");
+      } else {
+        finalName = fallbackName;
+        _log("⚠️ No identificado, usando nombre de archivo");
+      }
+
+      // Guardar en cache
+      if (reuseIdentification) {
+        _romCache.cacheRomInfo(
+          filePath: filePath,
+          fileSize: stat.size,
+          lastModified: stat.modified,
+          sha1: hashes.sha1,
+          md5: hashes.md5,
+          crc32: hashes.crc32,
+          identifiedName: finalName,
+          systemId: screenScraperId,
+          isIdentified: wasIdentified,
+        );
+      }
+
+      return finalName;
+    } catch (e) {
+      _log("⚠️ Error de identificación: $e");
+
+      // Guardar error en cache para evitar reintentar
+      if (reuseIdentification) {
+        final file = File(filePath);
+        if (file.existsSync()) {
+          final stat = file.statSync();
+          _romCache.cacheRomInfo(
+            filePath: filePath,
+            fileSize: stat.size,
+            lastModified: stat.modified,
+            identifiedName: fallbackName,
+            systemId: screenScraperId,
+            isIdentified: false,
+          );
+        }
+      }
+
+      return fallbackName;
     }
   }
 
@@ -181,6 +315,7 @@ system:
     bool cleanOld = true,
     Map<String, dynamic>? specialConfig,
     bool useHighPrecision = false,
+    bool reuseIdentification = true,
     List<File>? customFiles,
     Map<String, String>? customNames,
   }) async {
@@ -242,24 +377,36 @@ system:
       String gameName = customNames?[f.path] ?? gameSlug;
       final fullRomPath = f.path;
 
-      // --- ALTA PRECISIÓN (HASH) ---
-      // Solo buscamos si el usuario no ha editado el nombre manualmente
+      // --- OPTIMIZACIÓN: VALIDACIÓN PREVIA Y CACHE ---
+      // Early exit si la extensión no es válida para la plataforma
+      final ext = p.extension(f.path).toLowerCase();
+      if (!extensions.contains(ext)) {
+        _log("⏩ Extensión no válida para $platformName: $ext");
+        continue;
+      }
+
+      // --- OPTIMIZACIÓN: REUTILIZACIÓN DE IDENTIFICACIÓN ---
+      // Solo buscar si el usuario no ha editado el nombre manualmente
       if (useHighPrecision &&
           (customNames == null || !customNames.containsKey(fullRomPath))) {
-        _log("🔍 Calculando hash: $gameSlug...");
-        try {
-          final identified = await ScreenScraperService.identifyFile(
+        // Verificar si necesitamos calcular hash o podemos usar cache
+        if (_shouldCalculateHash(
+          fullRomPath,
+          reuseIdentification: reuseIdentification,
+        )) {
+          // Obtener nombre identificado (con cache automático)
+          gameName = await _getIdentifiedName(
             fullRomPath,
-            systemId: screenScraperId,
+            gameSlug,
+            useHighPrecision: useHighPrecision,
+            reuseIdentification: reuseIdentification,
           );
-          if (identified != null && identified.name != null) {
-            gameName = identified.name!;
-            _log("✨ Identificado: $gameName");
-          } else {
-            _log("⚠️ No identificado, usando nombre de archivo.");
+        } else {
+          // Usar cache existente
+          final cached = _romCache.shouldProcessRom(fullRomPath);
+          if (cached?.identifiedName != null) {
+            gameName = cached!.identifiedName!;
           }
-        } catch (e) {
-          _log("⚠️ Error de identificación: $e");
         }
       }
 
@@ -310,11 +457,27 @@ system:
     }
 
     db.dispose();
+    _romCache.dispose(); // Cerrar cache de ROM
 
     _log("🎉 ¡Inyección completa! $count juegos nuevos agregados.", 1.0);
 
     if (errors.isNotEmpty) {
       _log("Se encontraron ${errors.length} errores.");
     }
+  }
+
+  /// Obtiene estadísticas del cache de ROMs
+  Map<String, dynamic> getCacheStats() {
+    return _romCache.getStats();
+  }
+
+  /// Limpia el cache de ROMs
+  void clearCache() {
+    _romCache.clearCache();
+  }
+
+  /// Cierra recursos
+  void dispose() {
+    _romCache.dispose();
   }
 }

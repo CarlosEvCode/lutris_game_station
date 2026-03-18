@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'hash_service.dart';
 import '../lutris/config_manager.dart';
 import 'package:path/path.dart' as p;
+import 'screenscraper_disk_cache.dart';
 
 // ============================================================================
 // EXCEPCIONES PERSONALIZADAS PARA SCREENSCRAPER
@@ -431,8 +432,19 @@ class ScreenScraperService {
 
   // Rate limiter y cache (singleton)
   static RateLimiter? _rateLimiter;
-  static final ResponseCache _cache = ResponseCache();
+  static final ResponseCache _memoryCache = ResponseCache(
+    maxAge: const Duration(hours: 6),
+  );
+  static final ScreenScraperDiskCache _diskCache = ScreenScraperDiskCache(
+    ttl: const Duration(days: 2),
+  );
+  static final Map<String, DateTime> _failedGameCache = {};
+  static const Duration _failedCacheTtl = Duration(hours: 12);
   static ScreenScraperQuota? _lastKnownQuota;
+  static int _totalRequests = 0;
+  static int _inMemoryCacheHits = 0;
+  static int _diskCacheHits = 0;
+  static int _failedLookups = 0;
 
   // Configuración de retry
   static const int _maxRetries = 3;
@@ -444,6 +456,15 @@ class ScreenScraperService {
 
   /// Obtiene la quota actual (cacheada)
   static ScreenScraperQuota? get currentQuota => _lastKnownQuota;
+
+  static String _cacheFailureKey(
+    String systemId,
+    String? crc,
+    String? md5,
+    String? sha1,
+  ) {
+    return '${systemId}_${crc ?? ''}_${md5 ?? ''}_${sha1 ?? ''}';
+  }
 
   /// Headers para las peticiones
   static Map<String, String> get _headers => {
@@ -686,11 +707,40 @@ class ScreenScraperService {
       );
     }
 
+    // Evitar consultas repetidas si ya fallaron recientemente
+    final failureKey = _cacheFailureKey(systemId, crc, md5, sha1);
+    final cachedFailure = _failedGameCache[failureKey];
+    if (cachedFailure != null) {
+      if (DateTime.now().difference(cachedFailure) < _failedCacheTtl) {
+        print('⏩ Saltando request a ScreenScraper (falló recientemente)');
+        return null;
+      } else {
+        _failedGameCache.remove(failureKey);
+      }
+    }
+
     // Verificar cache primero
-    if (_cache.contains(crc, md5, sha1, systemId)) {
-      final cached = _cache.get(crc, md5, sha1, systemId);
-      print('📦 Cache hit para ${fileName ?? 'ROM'}');
-      return cached;
+    final cachedMemory = _memoryCache.get(crc, md5, sha1, systemId);
+    if (cachedMemory != null) {
+      _inMemoryCacheHits++;
+      print('📦 Cache en memoria para ${fileName ?? 'ROM'}');
+      return cachedMemory;
+    }
+
+    final diskEntry = _diskCache.get(crc, md5, sha1, systemId);
+    if (diskEntry != null) {
+      _diskCacheHits++;
+      if (diskEntry.isMiss) {
+        print('💾 Cache en disco (miss) para ${fileName ?? 'ROM'}');
+        return null;
+      }
+      final data = diskEntry.data;
+      if (data != null) {
+        print('💾 Cache en disco para ${fileName ?? 'ROM'}');
+        final game = ScreenScraperGame.fromJson(data);
+        _memoryCache.set(crc, md5, sha1, systemId, game);
+        return game;
+      }
     }
 
     final ssid = await ConfigManager.getSSUser();
@@ -721,15 +771,20 @@ class ScreenScraperService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        _totalRequests++;
         final game = ScreenScraperGame.fromJson(data);
 
-        // Guardar en cache
-        _cache.set(crc, md5, sha1, systemId, game);
+        _memoryCache.set(crc, md5, sha1, systemId, game);
+        _diskCache.set(crc, md5, sha1, systemId, data as Map<String, dynamic>);
 
         return game;
       } else if (response.statusCode == 404) {
         // Guardar en cache que no se encontró (evita búsquedas repetidas)
-        _cache.set(crc, md5, sha1, systemId, null);
+        _totalRequests++;
+        _failedLookups++;
+        _memoryCache.set(crc, md5, sha1, systemId, null);
+        _diskCache.set(crc, md5, sha1, systemId, null, isMiss: true);
+        _failedGameCache[failureKey] = DateTime.now();
         return null;
       } else {
         _handleErrorResponse(response.statusCode, response.body);
@@ -774,7 +829,10 @@ class ScreenScraperService {
 
   /// Limpia el cache de respuestas
   static void clearCache() {
-    _cache.clear();
+    _memoryCache.clear();
+    _diskCache.clear();
+    _inMemoryCacheHits = 0;
+    _diskCacheHits = 0;
     print('🗑️ Cache de ScreenScraper limpiado');
   }
 
@@ -786,15 +844,20 @@ class ScreenScraperService {
   /// Obtiene estadísticas del servicio
   static Map<String, dynamic> getStats() {
     return {
-      'cacheSize': _cache.size,
+      'cacheSize': _memoryCache.size,
+      'memoryCacheHits': _inMemoryCacheHits,
+      'diskCacheHits': _diskCacheHits,
+      'failedLookups': _failedLookups,
+      'totalRequests': _totalRequests,
       'rateLimiterConfigured': _rateLimiter != null,
       'availableRequestsNow': _rateLimiter?.availableRequests ?? 0,
+      'diskCacheEntries': _diskCache.entryCount,
       'lastKnownQuota': _lastKnownQuota != null
           ? {
               'requestsToday': _lastKnownQuota!.requestsToday,
               'maxPerDay': _lastKnownQuota!.maxRequestsPerDay,
               'remaining': _lastKnownQuota!.remainingToday,
-              'usagePercent': _lastKnownQuota!.usagePercent.toStringAsFixed(1),
+              'usagePercent': _lastKnownQuota!.usagePercent,
             }
           : null,
     };

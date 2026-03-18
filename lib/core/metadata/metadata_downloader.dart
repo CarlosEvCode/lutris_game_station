@@ -20,7 +20,7 @@ class MetadataDownloader {
   static const _manualFixes = {
     "BloodyRoarII": "Bloody Roar 2",
     "kof2002": "The King of Fighters 2002",
-    "MarvelVsCapcom": "Marvel vs. Capcom: Clash of Super Heroes"
+    "MarvelVsCapcom": "Marvel vs. Capcom: Clash of Super Heroes",
   };
 
   MetadataDownloader({
@@ -58,9 +58,15 @@ class MetadataDownloader {
 
   String _cleanName(String name) {
     String clean = name;
-    clean = clean.replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]} ${m[2]}');
-    clean = clean.replaceAllMapped(RegExp(r'(\D)(\d)'), (m) => '${m[1]} ${m[2]}');
-    clean = clean.replaceAll(RegExp(r'\..+$'), ''); 
+    clean = clean.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (m) => '${m[1]} ${m[2]}',
+    );
+    clean = clean.replaceAllMapped(
+      RegExp(r'(\D)(\d)'),
+      (m) => '${m[1]} ${m[2]}',
+    );
+    clean = clean.replaceAll(RegExp(r'\..+$'), '');
     clean = clean.replaceAll('_', ' ').replaceAll('.', ' ');
     clean = clean.replaceAll(RegExp(r'\(.*?\)'), '');
     clean = clean.replaceAll(RegExp(r'\[.*?\]'), '');
@@ -92,7 +98,10 @@ class MetadataDownloader {
 
     _log("🎨 Descargando metadatos para: $runner");
 
-    final results = db.select("SELECT id, slug, name FROM games WHERE runner = ? AND installed = 1", [runner]);
+    final results = db.select(
+      "SELECT id, slug, name FROM games WHERE runner = ? AND installed = 1",
+      [runner],
+    );
     if (results.isEmpty) {
       _log("⚠️ No se encontraron juegos instalados para $runner");
       db.dispose();
@@ -106,24 +115,47 @@ class MetadataDownloader {
       final gameId = row['id'] as int;
       final slug = row['slug'] as String;
       final rawName = row['name'] as String;
+      final hasIdentifiedName = rawName.isNotEmpty && rawName != slug;
 
       final pCover = p.join(coversDir, "$slug.jpg");
       final pBanner = p.join(bannersDir, "$slug.jpg");
       final pIconLutris = p.join(lutrisIconsDir, "$slug.png");
       final pIconSystem = p.join(systemIconsDir, "lutris_$slug.png");
 
-      if (skipExisting && File(pCover).existsSync() && File(pBanner).existsSync() && File(pIconSystem).existsSync()) {
+      if (skipExisting &&
+          File(pCover).existsSync() &&
+          File(pBanner).existsSync() &&
+          File(pIconSystem).existsSync()) {
         _log("⏩ Saltando $slug (Ya existe)", (i + 1) / totalGames);
         continue;
       }
 
-      _log("🔍 Procesando: $slug", (i + 1) / totalGames);
+      final displayName = hasIdentifiedName ? rawName : slug;
+      _log("🔍 Procesando: $displayName", (i + 1) / totalGames);
 
       final cleanName = _cleanName(rawName);
       final candidates = <String>[];
-      if (_manualFixes.containsKey(slug)) candidates.add(_manualFixes[slug]!);
-      if (!candidates.contains(cleanName)) candidates.add(cleanName);
-      if (!candidates.contains(rawName)) candidates.add(rawName);
+
+      void addCandidate(String value) {
+        final trimmed = value.trim();
+        if (trimmed.isEmpty) return;
+        if (!candidates.contains(trimmed)) {
+          candidates.add(trimmed);
+        }
+      }
+
+      if (hasIdentifiedName) {
+        addCandidate(rawName);
+      }
+
+      if (_manualFixes.containsKey(slug)) {
+        addCandidate(_manualFixes[slug]!);
+      }
+
+      if (!hasIdentifiedName) {
+        addCandidate(cleanName);
+        addCandidate(rawName);
+      }
 
       Map<String, dynamic>? foundGame;
       for (var candidate in candidates) {
@@ -156,7 +188,8 @@ class MetadataDownloader {
           if (await _downloadFile(covers.first['url'], pCover)) updated = true;
         }
         if (banners.isNotEmpty && !File(pBanner).existsSync()) {
-          if (await _downloadFile(banners.first['url'], pBanner)) updated = true;
+          if (await _downloadFile(banners.first['url'], pBanner))
+            updated = true;
         }
         if (icons.isNotEmpty && !File(pIconSystem).existsSync()) {
           if (await _downloadFile(icons.first['url'], pIconLutris)) {
@@ -166,18 +199,21 @@ class MetadataDownloader {
         }
 
         if (updated) {
-          db.execute('''
+          db.execute(
+            '''
             UPDATE games
             SET name=?, sortname=?, 
                 has_custom_banner=1, has_custom_icon=1, has_custom_coverart_big=1
             WHERE id=?
-          ''', [sgdbName, sgdbName, gameId]);
+          ''',
+            [sgdbName, sgdbName, gameId],
+          );
         }
       } else {
         _log("   ❌ No se encontró en SteamGridDB");
       }
     }
-    
+
     db.dispose();
     _log("🎉 ¡Completado!", 1.0);
   }
