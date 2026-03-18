@@ -36,6 +36,20 @@ class Game {
   }
 }
 
+class GameMediaStats {
+  final int total;
+  final int missingCover;
+  final int missingBanner;
+  final int missingIcon;
+
+  const GameMediaStats({
+    required this.total,
+    required this.missingCover,
+    required this.missingBanner,
+    required this.missingIcon,
+  });
+}
+
 class GamesRepository {
   final String dbPath;
 
@@ -56,36 +70,83 @@ class GamesRepository {
     }
   }
 
-  List<Game> getGamesByRunner(String runner, {int? limit, int offset = 0, String? filterMode}) {
+  List<Game> getGamesByRunner(
+    String runner, {
+    int? limit,
+    int offset = 0,
+    String? filterMode,
+    String? searchQuery,
+  }) {
     final db = sqlite3.open(dbPath);
     try {
       String whereClause = "WHERE runner = ? AND installed = 1";
-      
+
       if (filterMode == 'missingCover') {
-        whereClause += " AND (has_custom_coverart_big = 0 OR has_custom_coverart_big IS NULL)";
+        whereClause +=
+            " AND (has_custom_coverart_big = 0 OR has_custom_coverart_big IS NULL)";
       } else if (filterMode == 'missingBanner') {
-        whereClause += " AND (has_custom_banner = 0 OR has_custom_banner IS NULL)";
+        whereClause +=
+            " AND (has_custom_banner = 0 OR has_custom_banner IS NULL)";
       } else if (filterMode == 'missingIcon') {
         whereClause += " AND (has_custom_icon = 0 OR has_custom_icon IS NULL)";
       }
 
-      String query = '''
+      final params = <dynamic>[runner];
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        whereClause += " AND (LOWER(name) LIKE ? OR LOWER(slug) LIKE ?)";
+        final likeQuery = '%${searchQuery.toLowerCase()}%';
+        params.addAll([likeQuery, likeQuery]);
+      }
+
+      String query =
+          '''
         SELECT id, slug, name, platform, configpath,
                has_custom_coverart_big, has_custom_banner, has_custom_icon
         FROM games 
         $whereClause
         ORDER BY name
       ''';
-      
-      List<dynamic> params = [runner];
-      
+
       if (limit != null) {
         query += " LIMIT ? OFFSET ?";
         params.addAll([limit, offset]);
       }
-      
+
       final results = db.select(query, params);
       return results.map((r) => Game.fromMap(r)).toList();
+    } finally {
+      db.dispose();
+    }
+  }
+
+  GameMediaStats getMediaStats(String runner, {String? searchQuery}) {
+    final db = sqlite3.open(dbPath);
+    try {
+      String whereClause = "WHERE runner = ? AND installed = 1";
+      final params = <dynamic>[runner];
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        whereClause += " AND (LOWER(name) LIKE ? OR LOWER(slug) LIKE ?)";
+        final likeQuery = '%${searchQuery.toLowerCase()}%';
+        params.addAll([likeQuery, likeQuery]);
+      }
+
+      final result = db.select('''
+        SELECT COUNT(*) as total,
+               SUM(CASE WHEN has_custom_coverart_big = 0 OR has_custom_coverart_big IS NULL THEN 1 ELSE 0 END) as missingCover,
+               SUM(CASE WHEN has_custom_banner = 0 OR has_custom_banner IS NULL THEN 1 ELSE 0 END) as missingBanner,
+               SUM(CASE WHEN has_custom_icon = 0 OR has_custom_icon IS NULL THEN 1 ELSE 0 END) as missingIcon
+        FROM games
+        $whereClause
+      ''', params).first;
+
+      return GameMediaStats(
+        total: (result['total'] as int?) ?? 0,
+        missingCover: (result['missingCover'] as int?) ?? 0,
+        missingBanner: (result['missingBanner'] as int?) ?? 0,
+        missingIcon: (result['missingIcon'] as int?) ?? 0,
+      );
     } finally {
       db.dispose();
     }
@@ -94,11 +155,14 @@ class GamesRepository {
   int getGamesCount(String runner) {
     final db = sqlite3.open(dbPath);
     try {
-      final results = db.select('''
+      final results = db.select(
+        '''
         SELECT COUNT(*) as count 
         FROM games 
         WHERE runner = ? AND installed = 1
-      ''', [runner]);
+      ''',
+        [runner],
+      );
       return results.first['count'] as int;
     } finally {
       db.dispose();
@@ -108,20 +172,24 @@ class GamesRepository {
   void updateGameName(int gameId, String newName) {
     final db = sqlite3.open(dbPath);
     try {
-      db.execute('''
+      db.execute(
+        '''
         UPDATE games
         SET name=?, sortname=?
         WHERE id=?
-      ''', [newName, newName, gameId]);
+      ''',
+        [newName, newName, gameId],
+      );
     } finally {
       db.dispose();
     }
   }
-  
+
   void markImagesAsCustom(int gameId, String gameName) {
     final db = sqlite3.open(dbPath);
     try {
-      db.execute('''
+      db.execute(
+        '''
         UPDATE games
         SET has_custom_banner=1, 
             has_custom_icon=1, 
@@ -129,7 +197,9 @@ class GamesRepository {
             name=?,
             sortname=?
         WHERE id=?
-      ''', [gameName, gameName, gameId]);
+      ''',
+        [gameName, gameName, gameId],
+      );
     } finally {
       db.dispose();
     }
@@ -147,13 +217,13 @@ class GamesRepository {
     try {
       final results = db.select(
         "SELECT id, slug, has_custom_coverart_big, has_custom_banner, has_custom_icon FROM games WHERE runner = ? AND installed = 1",
-        [runner]
+        [runner],
       );
 
       for (final row in results) {
         final int id = row['id'];
         final String slug = row['slug'];
-        
+
         final hasCoverFile = File("$coversDir$slug.jpg").existsSync();
         final hasBannerFile = File("$bannersDir$slug.jpg").existsSync();
         final hasIconFile = File("${iconsDir}lutris_$slug.png").existsSync();
@@ -162,19 +232,21 @@ class GamesRepository {
         if ((hasCoverFile && row['has_custom_coverart_big'] == 0) ||
             (hasBannerFile && row['has_custom_banner'] == 0) ||
             (hasIconFile && row['has_custom_icon'] == 0)) {
-          
-          db.execute('''
+          db.execute(
+            '''
             UPDATE games 
             SET has_custom_coverart_big = ?, 
                 has_custom_banner = ?, 
                 has_custom_icon = ? 
             WHERE id = ?
-          ''', [
-            hasCoverFile ? 1 : 0, 
-            hasBannerFile ? 1 : 0, 
-            hasIconFile ? 1 : 0, 
-            id
-          ]);
+          ''',
+            [
+              hasCoverFile ? 1 : 0,
+              hasBannerFile ? 1 : 0,
+              hasIconFile ? 1 : 0,
+              id,
+            ],
+          );
         }
       }
     } finally {

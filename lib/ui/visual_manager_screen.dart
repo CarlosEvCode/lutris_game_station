@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
+
 import '../core/lutris/games_repository.dart';
 import '../platforms/platform_registry.dart';
 import 'steamgriddb_visual_selector.dart';
@@ -9,10 +11,10 @@ class VisualManagerScreen extends StatefulWidget {
   final String apiKey;
 
   const VisualManagerScreen({
-    Key? key,
+    super.key,
     required this.lutrisPaths,
     required this.apiKey,
-  }) : super(key: key);
+  });
 
   @override
   State<VisualManagerScreen> createState() => _VisualManagerScreenState();
@@ -22,21 +24,30 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   late GamesRepository _repo;
   List<PlatformInfo> _platforms = [];
   PlatformInfo? _selectedPlatform;
-  List<Game> _games = [];
-  
-  int _page = 0;
-  final int _limit = 24;
-  bool _isLoading = false;
-  bool _hasMore = true; // Controlar si quedan más juegos por cargar
-  bool _isGridView = true; // Nuevo estado para alternar vistas
-  String _filterMode = 'all'; // all, missingCover, missingBanner, missingIcon
-  
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
+
   final ScrollController _scrollController = ScrollController();
-  
-  // Para forzar el refresco de imágenes
+  final TextEditingController _searchController = TextEditingController();
+
+  List<Game> _games = [];
+  bool _isLoading = false;
+  bool _hasMore = true;
+  bool _isGridView = true;
+  bool _selectionMode = false;
+
+  int _page = 0;
+  final int _limit = 30;
+  String _searchQuery = '';
+  String _filterMode = 'all';
   int _imageVersion = 0;
+
+  GameMediaStats _stats = const GameMediaStats(
+    total: 0,
+    missingCover: 0,
+    missingBanner: 0,
+    missingIcon: 0,
+  );
+
+  final Set<int> _selectedGameIds = {};
 
   @override
   void initState() {
@@ -44,22 +55,6 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     _repo = GamesRepository(widget.lutrisPaths['db_path']!);
     _scrollController.addListener(_onScroll);
     _loadPlatforms();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
-      if (!_isLoading && _hasMore) {
-        _loadMoreGames();
-      }
-    }
   }
 
   @override
@@ -72,48 +67,77 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     }
   }
 
-  void _loadPlatforms() {
-    _platforms = PlatformRegistry.getAllPlatforms();
-    if (_platforms.isNotEmpty) {
-      _selectedPlatform = _platforms.first;
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 600) {
+      if (!_isLoading && _hasMore) {
+        _loadMoreGames();
+      }
+    }
+  }
+
+  Future<void> _loadPlatforms() async {
+    final platforms = PlatformRegistry.getAllPlatforms();
+    setState(() => _platforms = platforms);
+    if (platforms.isNotEmpty) {
+      setState(() => _selectedPlatform = platforms.first);
       _refreshList();
     }
   }
 
-  void _refreshList() {
-    if (_selectedPlatform != null) {
+  Future<void> _refreshList() async {
+    if (_selectedPlatform == null) return;
+    if (!_selectionMode) _selectedGameIds.clear();
+
+    await _syncMetadata();
+
+    setState(() {
+      _page = 0;
+      _games = [];
+      _hasMore = true;
+      _stats = _repo.getMediaStats(
+        _selectedPlatform!.runner,
+        searchQuery: _searchQuery,
+      );
+    });
+
+    _loadMoreGames();
+  }
+
+  Future<void> _syncMetadata() async {
+    if (_selectedPlatform == null) return;
+    await Future.microtask(() {
       _repo.syncMetadataWithDisk(
         runner: _selectedPlatform!.runner,
         coversDir: widget.lutrisPaths['covers_dir']!,
         bannersDir: widget.lutrisPaths['banners_dir']!,
         iconsDir: widget.lutrisPaths['system_icons_dir']!,
       );
-    }
-    
-    setState(() {
-      _page = 0;
-      _games = [];
-      _hasMore = true;
     });
-    _loadMoreGames();
   }
 
-  void _loadMoreGames() async {
+  Future<void> _loadMoreGames() async {
     if (_selectedPlatform == null || _isLoading || !_hasMore) return;
-    
+
     setState(() => _isLoading = true);
-    
-    // Pequeño delay para suavizar la UI si la carga es muy rápida
-    await Future.delayed(const Duration(milliseconds: 50));
-    
+    await Future.delayed(const Duration(milliseconds: 80));
+
     final offset = _page * _limit;
     final fetchedGames = _repo.getGamesByRunner(
-      _selectedPlatform!.runner, 
-      limit: _limit, 
+      _selectedPlatform!.runner,
+      limit: _limit,
       offset: offset,
       filterMode: _filterMode != 'all' ? _filterMode : null,
+      searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
     );
-    
+
     setState(() {
       _isLoading = false;
       if (fetchedGames.length < _limit) {
@@ -124,47 +148,755 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     });
   }
 
-  Widget _buildImagePreview(Game game, String type) {
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) {
+        _selectedGameIds.clear();
+      }
+    });
+  }
+
+  void _toggleGameSelection(Game game) {
+    if (!_selectionMode) return;
+    setState(() {
+      if (_selectedGameIds.contains(game.id)) {
+        _selectedGameIds.remove(game.id);
+      } else {
+        _selectedGameIds.add(game.id);
+      }
+    });
+  }
+
+  bool _isGameSelected(Game game) => _selectedGameIds.contains(game.id);
+
+  Widget _buildLibrarySummary() {
+    final theme = Theme.of(context);
+    final total = _stats.total;
+
+    Widget buildChip(String label, int missing, IconData icon, Color color) {
+      return Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: missing == 0
+              ? null
+              : () {
+                  setState(
+                    () => _filterMode = label == 'Sin portada'
+                        ? 'missingCover'
+                        : label == 'Sin banner'
+                        ? 'missingBanner'
+                        : 'missingIcon',
+                  );
+                  _refreshList();
+                },
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: missing > 0
+                    ? color.withOpacity(0.6)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: missing > 0 ? color : Colors.white30,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$missing',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: missing > 0 ? color : Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Biblioteca',
+              style: TextStyle(
+                fontSize: 12,
+                letterSpacing: 1.2,
+                color: Colors.white70,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$total juegos',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            buildChip(
+              'Sin portada',
+              _stats.missingCover,
+              Icons.photo_library,
+              Colors.pinkAccent,
+            ),
+            buildChip(
+              'Sin banner',
+              _stats.missingBanner,
+              Icons.panorama_horizontal,
+              Colors.amberAccent,
+            ),
+            buildChip(
+              'Sin icono',
+              _stats.missingIcon,
+              Icons.apps,
+              Colors.lightBlueAccent,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildFiltersSection(),
+      ],
+    );
+  }
+
+  Widget _buildFiltersSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Filtros rápidos',
+          style: TextStyle(
+            fontSize: 12,
+            letterSpacing: 1.2,
+            color: Colors.white70,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Todos', style: TextStyle(fontSize: 11)),
+              selected: _filterMode == 'all',
+              onSelected: (val) {
+                if (val) {
+                  setState(() => _filterMode = 'all');
+                  _refreshList();
+                }
+              },
+            ),
+            ChoiceChip(
+              label: const Text('Sin portada', style: TextStyle(fontSize: 11)),
+              selected: _filterMode == 'missingCover',
+              onSelected: (val) {
+                if (val) {
+                  setState(() => _filterMode = 'missingCover');
+                  _refreshList();
+                }
+              },
+            ),
+            ChoiceChip(
+              label: const Text('Sin banner', style: TextStyle(fontSize: 11)),
+              selected: _filterMode == 'missingBanner',
+              onSelected: (val) {
+                if (val) {
+                  setState(() => _filterMode = 'missingBanner');
+                  _refreshList();
+                }
+              },
+            ),
+            ChoiceChip(
+              label: const Text('Sin icono', style: TextStyle(fontSize: 11)),
+              selected: _filterMode == 'missingIcon',
+              onSelected: (val) {
+                if (val) {
+                  setState(() => _filterMode = 'missingIcon');
+                  _refreshList();
+                }
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Herramientas',
+          style: TextStyle(
+            fontSize: 12,
+            letterSpacing: 1.2,
+            color: Colors.white70,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Column(
+          children: [
+            _buildSideActionButton(
+              icon: Icons.select_all,
+              label: _selectionMode
+                  ? 'Cancelar selección multiple'
+                  : 'Selección multiple',
+              onPressed: _toggleSelectionMode,
+              isActive: _selectionMode,
+            ),
+            const SizedBox(height: 8),
+            _buildSideActionButton(
+              icon: Icons.refresh,
+              label: 'Forzar sincronización',
+              onPressed: _refreshList,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSideActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    bool isActive = false,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive
+              ? theme.colorScheme.primary.withOpacity(0.15)
+              : theme.colorScheme.surfaceVariant.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isActive ? theme.colorScheme.primary : Colors.white70,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isActive ? theme.colorScheme.primary : Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.8),
+        border: Border(
+          bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2)),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Platform dropdown
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<PlatformInfo>(
+                value: _selectedPlatform,
+                items: _platforms.map((p) {
+                  return DropdownMenuItem(
+                    value: p,
+                    child: Text(
+                      p.platformName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _selectedPlatform = val);
+                    _refreshList();
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Search bar
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() => _searchQuery = value.trim());
+                _refreshList();
+              },
+              decoration: InputDecoration(
+                hintText: 'Buscar juego o slug...',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                          _refreshList();
+                        },
+                      )
+                    : null,
+                filled: true,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // View toggle
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ToggleButtons(
+              borderRadius: BorderRadius.circular(12),
+              isSelected: [_isGridView, !_isGridView],
+              onPressed: (index) {
+                setState(() => _isGridView = index == 0);
+              },
+              children: const [
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Icon(Icons.grid_view, size: 18),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Icon(Icons.view_list, size: 18),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          FilledButton.tonalIcon(
+            onPressed: _refreshList,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Refrescar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidePanel() {
+    final theme = Theme.of(context);
+    return Container(
+      width: 280,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.7),
+        border: Border(
+          right: BorderSide(color: theme.dividerColor.withValues(alpha: 0.15)),
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [_buildLibrarySummary()],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameGrid() {
+    return GridView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(24),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 260,
+        childAspectRatio: 0.68,
+        crossAxisSpacing: 24,
+        mainAxisSpacing: 24,
+      ),
+      itemCount: _games.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index < _games.length) {
+          return _buildGameCard(_games[index]);
+        } else {
+          return const Center(child: CircularProgressIndicator());
+        }
+      },
+    );
+  }
+
+  Widget _buildGameList() {
+    return ListView.separated(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(24),
+      itemCount: _games.length + (_hasMore ? 1 : 0),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        if (index < _games.length) {
+          return _buildGameListTile(_games[index]);
+        } else {
+          return const Center(child: CircularProgressIndicator());
+        }
+      },
+    );
+  }
+
+  Widget _buildGameListTile(Game game) {
+    final theme = Theme.of(context);
+    final isSelected = _isGameSelected(game);
+    return InkWell(
+      onTap: () =>
+          _selectionMode ? _toggleGameSelection(game) : _editMetadata(game),
+      onLongPress: () {
+        if (!_selectionMode) {
+          _toggleSelectionMode();
+          _toggleGameSelection(game);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary.withOpacity(0.6)
+                : theme.dividerColor.withValues(alpha: 0.1),
+          ),
+          color: isSelected
+              ? theme.colorScheme.primary.withOpacity(0.08)
+              : theme.colorScheme.surfaceVariant.withOpacity(0.2),
+        ),
+        child: Row(
+          children: [
+            if (_selectionMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(
+                  isSelected ? Icons.check_circle : Icons.circle_outlined,
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : Colors.white38,
+                ),
+              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: _buildImagePreview(game, 'cover', fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    game.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    game.platform,
+                    style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildMediaStatus(game),
+            const SizedBox(width: 16),
+            IconButton(
+              icon: const Icon(Icons.edit),
+              color: Colors.white60,
+              onPressed: () => _editMetadata(game),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaStatus(Game game) {
+    Widget buildDot(bool hasAsset, IconData icon) {
+      return Icon(
+        icon,
+        size: 16,
+        color: hasAsset ? Colors.greenAccent : Colors.orangeAccent,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        buildDot(game.hasCover, Icons.photo_library),
+        const SizedBox(width: 6),
+        buildDot(game.hasBanner, Icons.panorama_horizontal),
+        const SizedBox(width: 6),
+        buildDot(game.hasIcon, Icons.apps),
+      ],
+    );
+  }
+
+  Widget _buildGameCard(Game game) {
+    final theme = Theme.of(context);
+    final missingCover = !game.hasCover;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () =>
+            _selectionMode ? _toggleGameSelection(game) : _editMetadata(game),
+        onLongPress: () {
+          if (!_selectionMode) {
+            _toggleSelectionMode();
+            _toggleGameSelection(game);
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: _isGameSelected(game)
+                  ? theme.colorScheme.primary.withOpacity(0.7)
+                  : theme.dividerColor.withValues(alpha: 0.05),
+            ),
+            color: missingCover
+                ? theme.colorScheme.errorContainer.withOpacity(0.1)
+                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+            boxShadow: _isGameSelected(game)
+                ? [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 16,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildImagePreview(game, 'cover', fit: BoxFit.cover),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Column(
+                          children: [
+                            if (!game.hasCover)
+                              _buildBadge('Cover')
+                            else if (!game.hasBanner)
+                              _buildBadge('Banner')
+                            else if (!game.hasIcon)
+                              _buildBadge('Icon'),
+                          ],
+                        ),
+                      ),
+                      if (_selectionMode)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Colors.black54,
+                            child: Icon(
+                              _isGameSelected(game)
+                                  ? Icons.check
+                                  : Icons.radio_button_unchecked,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: IconButton.filled(
+                          icon: const Icon(Icons.edit, size: 16),
+                          onPressed: () => _editMetadata(game),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(34, 34),
+                            backgroundColor: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      game.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: SizedBox(
+                              height: 28,
+                              child: _buildImagePreview(
+                                game,
+                                'banner',
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: _buildImagePreview(
+                              game,
+                              'icon',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.deepOrange.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildImagePreview(
+    Game game,
+    String type, {
+    BoxFit fit = BoxFit.cover,
+  }) {
     String? path;
-    BoxFit fit = BoxFit.cover;
-    
+
     if (type == 'cover') {
       path = "${widget.lutrisPaths['covers_dir']}${game.slug}.jpg";
     } else if (type == 'banner') {
       path = "${widget.lutrisPaths['banners_dir']}${game.slug}.jpg";
     } else if (type == 'icon') {
       path = "${widget.lutrisPaths['system_icons_dir']}lutris_${game.slug}.png";
-      fit = BoxFit.contain;
     }
 
     if (path != null && File(path).existsSync()) {
       return Image.file(
         File(path),
-        key: ValueKey("$path-$_imageVersion"), // Forzar recarga si cambia la versión
+        key: ValueKey("$path-$_imageVersion"),
         fit: fit,
-        errorBuilder: (ctx, _, __) => _buildPlaceholder(type),
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(type),
       );
     }
+
     return _buildPlaceholder(type);
   }
 
   Widget _buildPlaceholder(String type) {
+    final icon = type == 'cover'
+        ? Icons.photo_library
+        : type == 'banner'
+        ? Icons.panorama_horizontal
+        : Icons.apps;
+
     return Container(
-      color: Colors.white.withOpacity(0.05),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              type == 'cover' ? Icons.book : (type == 'banner' ? Icons.view_day : Icons.api),
-              color: Colors.white24, 
-              size: type == 'icon' ? 20 : 40
-            ),
-            if (type != 'icon') ...[
-              const SizedBox(height: 8),
-              Text('Sin ${type}', style: const TextStyle(color: Colors.white24, fontSize: 10)),
-            ]
-          ],
+        child: Icon(
+          icon,
+          color: Colors.white12,
+          size: type == 'icon' ? 18 : 36,
         ),
       ),
     );
@@ -176,363 +908,110 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
       game,
       widget.lutrisPaths,
       widget.apiKey,
-      () => setState(() {
-        _imageVersion++; // Evict cache
+      () {
+        setState(() => _imageVersion++);
         _refreshList();
-      }),
+      },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
-    return Column(
-      children: [
-        // Barra de Filtros y Búsqueda
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.1))),
-          ),
-          child: Row(
-            children: [
-              // Selector de Plataforma
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<PlatformInfo>(
-                    value: _selectedPlatform,
-                    items: _platforms.map((p) => DropdownMenuItem(
-                      value: p, 
-                      child: Text(p.platformName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))
-                    )).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _selectedPlatform = val);
-                        _refreshList();
-                      }
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Barra de Búsqueda
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (val) {
-                    setState(() => _searchQuery = val);
-                    _refreshList();
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Buscar juego...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: _searchQuery.isNotEmpty 
-                      ? IconButton(icon: const Icon(Icons.clear, size: 20), onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                          _refreshList();
-                        })
-                      : null,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    filled: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Selector de Vista
-              Container(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-                  onPressed: () => setState(() => _isGridView = !_isGridView),
-                  tooltip: _isGridView ? 'Cambiar a Vista de Lista' : 'Cambiar a Vista de Cuadrícula',
-                ),
-              ),
-              const SizedBox(width: 16),
-              _buildFilterButton(theme),
-              const SizedBox(width: 16),
-              IconButton.filledTonal(
-                icon: const Icon(Icons.refresh), 
-                onPressed: _refreshList,
-                tooltip: 'Refrescar',
-              ),
-            ],
-          ),
-        ),
-        
-        // Grid o Lista de Juegos
-        Expanded(
-          child: _games.isEmpty && _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _games.isEmpty
-              ? _buildEmptyState(theme)
-              : _isGridView ? _buildGridView() : _buildListView(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState(ThemeData theme) {
+  Widget _buildEmptyState() {
     return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.search_off, size: 64, color: theme.disabledColor),
-          const SizedBox(height: 16),
-          Text("No se encontraron juegos", style: theme.textTheme.titleMedium),
+          const Icon(Icons.search_off, size: 64, color: Colors.white30),
+          const SizedBox(height: 12),
+          Text(
+            'No se encontraron juegos',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Ajusta tus filtros o verifica que tengas juegos instalados en esta plataforma.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, fontSize: 13),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildGridView() {
-    return GridView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(24),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 280,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 24,
-        mainAxisSpacing: 24,
-      ),
-      itemCount: _games.length + (_hasMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index < _games.length) {
-          return _buildGameCard(_games[index]);
-        } else {
-          return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()));
-        }
-      },
-    );
+  Widget _buildContentArea() {
+    if (_isLoading && _games.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_games.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return _isGridView ? _buildGameGrid() : _buildGameList();
   }
 
-  Widget _buildListView() {
-    return ListView.separated(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(24),
-      itemCount: _games.length + (_hasMore ? 1 : 0),
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        if (index < _games.length) {
-          return _buildGameListTile(_games[index]);
-        } else {
-          return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()));
-        }
-      },
-    );
-  }
-
-  Widget _buildGameListTile(Game game) {
+  Widget _buildSelectionBar() {
+    if (!_selectionMode) return const SizedBox.shrink();
     final theme = Theme.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.dividerColor.withOpacity(0.05)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.9),
+        border: Border(
+          top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2)),
+        ),
       ),
-      child: InkWell(
-        onTap: () => _editMetadata(game),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          Text(
+            '${_selectedGameIds.length} seleccionados',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 16),
+          TextButton.icon(
+            onPressed: _selectedGameIds.length == _games.length
+                ? null
+                : () {
+                    setState(() {
+                      _selectedGameIds
+                        ..clear()
+                        ..addAll(_games.map((g) => g.id));
+                    });
+                  },
+            icon: const Icon(Icons.select_all, size: 18),
+            label: const Text('Seleccionar visibles'),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: () => _selectedGameIds.clear(),
+            icon: const Icon(Icons.clear),
+            label: const Text('Limpiar'),
+          ),
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: _selectedGameIds.isEmpty ? null : () {},
+            icon: const Icon(Icons.palette),
+            label: const Text('Aplicar arte a seleccionados'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _buildHeader(),
+        Expanded(
           child: Row(
             children: [
-              // Icono miniatura
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white.withOpacity(0.05),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _buildImagePreview(game, 'icon'),
-              ),
-              const SizedBox(width: 16),
-              // Nombre y Plataforma
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      game.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      game.slug,
-                      style: TextStyle(color: theme.hintColor, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              // Banner miniatura
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  width: 120,
-                  height: 40,
-                  child: _buildImagePreview(game, 'banner'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Icon(Icons.chevron_right, color: Colors.white24),
+              _buildSidePanel(),
+              Expanded(child: _buildContentArea()),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildGameCard(Game game) {
-    final theme = Theme.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.dividerColor.withOpacity(0.05)),
-      ),
-      child: InkWell(
-        onTap: () => _editMetadata(game),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Cover Art
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _buildImagePreview(game, 'cover'),
-                  // Overlay de edición al hacer hover (o siempre en mobile)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const IconButton(
-                        icon: Icon(Icons.edit, color: Colors.white, size: 18),
-                        onPressed: null, // El InkWell padre maneja el tap
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Info
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    game.name, 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: SizedBox(
-                            height: 30,
-                            child: _buildImagePreview(game, 'banner'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                          color: Colors.white.withOpacity(0.05),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: _buildImagePreview(game, 'icon'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterButton(ThemeData theme) {
-    return PopupMenuButton<String>(
-      tooltip: 'Filtrar por metadatos faltantes',
-      onSelected: (val) {
-        setState(() => _filterMode = val);
-        _refreshList();
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(value: 'all', child: Text('Ver Todos')),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: 'missingCover', child: Text('Sin Portada')),
-        const PopupMenuItem(value: 'missingBanner', child: Text('Sin Banner')),
-        const PopupMenuItem(value: 'missingIcon', child: Text('Sin Icono')),
+        _buildSelectionBar(),
       ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: _filterMode == 'all' 
-            ? theme.colorScheme.surfaceVariant.withOpacity(0.3)
-            : theme.colorScheme.primaryContainer.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _filterMode == 'all' ? Colors.transparent : theme.colorScheme.primary.withOpacity(0.5)
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _filterMode == 'all' ? Icons.filter_list : Icons.filter_list_alt, 
-              size: 20, 
-              color: _filterMode == 'all' ? null : theme.colorScheme.primary
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _getFilterLabel(), 
-              style: TextStyle(
-                fontSize: 13, 
-                fontWeight: _filterMode == 'all' ? FontWeight.normal : FontWeight.bold,
-                color: _filterMode == 'all' ? null : theme.colorScheme.primary
-              )
-            ),
-          ],
-        ),
-      ),
     );
-  }
-
-  String _getFilterLabel() {
-    switch (_filterMode) {
-      case 'missingCover': return 'Sin Portada';
-      case 'missingBanner': return 'Sin Banner';
-      case 'missingIcon': return 'Sin Icono';
-      default: return 'Filtros';
-    }
   }
 }
