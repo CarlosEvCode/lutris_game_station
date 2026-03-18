@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.1.1...v2.2.0) (2026-03-18)
+
+
+### Features
+
+* redesign visual manager for desktop workflow ([5335de9](https://github.com/CarlosEvCode/lutris_game_station/commit/5335de95c8f0eda66bccad99cddfcc7208a901bb))
+
 ## [2.1.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.1.0...v2.1.1) (2026-03-18)
 
 
