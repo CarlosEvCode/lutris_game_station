@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.0.0...v2.1.0) (2026-03-18)
+
+
+### Features
+
+* trigger build with .env secrets configuration ([ed3e37e](https://github.com/CarlosEvCode/lutris_game_station/commit/ed3e37e24c20e31cbe94377f4128af3f5a4311e9))
+
 ## [2.0.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v1.6.0...v2.0.0) (2026-03-17)
 
 
