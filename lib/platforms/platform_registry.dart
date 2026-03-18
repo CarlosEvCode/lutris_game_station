@@ -53,14 +53,16 @@ class PlatformRegistry {
       platformId: 'ps2',
       platformName: 'Sony PlayStation 2',
       runner: 'pcsx2',
-      extensions: ['.iso', '.chd', '.gz', '.cso'],
+      extensions: ['.iso', '.chd'],
+      extensionPriority: ['.iso', '.chd'],
       screenScraperId: '58',
     );
     _platforms['gamecube'] = const PlatformInfo(
       platformId: 'gamecube',
       platformName: 'Nintendo GameCube',
       runner: 'dolphin',
-      extensions: ['.iso', '.gcm', '.rvz'],
+      extensions: ['.iso', '.gcz', '.rvz'],
+      extensionPriority: ['.iso', '.gcz', '.rvz'],
       screenScraperId: '13',
     );
     _platforms['wii'] = const PlatformInfo(
@@ -68,6 +70,7 @@ class PlatformRegistry {
       platformName: 'Nintendo Wii',
       runner: 'dolphin',
       extensions: ['.iso', '.wbfs', '.rvz'],
+      extensionPriority: ['.iso', '.wbfs', '.rvz'],
       screenScraperId: '16',
     );
     _platforms['wii_u'] = const PlatformInfo(
@@ -83,6 +86,7 @@ class PlatformRegistry {
       platformName: 'Arcade (MAME)',
       runner: 'mame',
       extensions: ['.zip', '.7z'],
+      extensionPriority: ['.zip', '.7z'],
       hasSpecialFeatures: true,
       disableRuntime: false,
       screenScraperId: '75',
