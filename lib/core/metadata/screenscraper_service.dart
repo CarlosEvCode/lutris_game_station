@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:collection';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'hash_service.dart';
 import '../lutris/config_manager.dart';
 import 'package:path/path.dart' as p;
@@ -416,11 +415,19 @@ class ScreenScraperService {
   static const String _userBaseUrl =
       'https://www.screenscraper.fr/api2/ssuserInfos.php';
 
-  // Credenciales de desarrollador desde .env
-  static String get _softName =>
-      dotenv.env['SS_SOFT_NAME'] ?? 'LutrisGameStation';
-  static String get _devId => dotenv.env['SS_DEV_ID'] ?? '';
-  static String get _devPassword => dotenv.env['SS_DEV_PASSWORD'] ?? '';
+  // Credenciales de desarrollador embebidas en compilación via --dart-define
+  static const String _softName = String.fromEnvironment(
+    'SS_SOFT_NAME',
+    defaultValue: 'LutrisGameStation',
+  );
+  static const String _devId = String.fromEnvironment(
+    'SS_DEV_ID',
+    defaultValue: '',
+  );
+  static const String _devPassword = String.fromEnvironment(
+    'SS_DEV_PASSWORD',
+    defaultValue: '',
+  );
 
   // Rate limiter y cache (singleton)
   static RateLimiter? _rateLimiter;

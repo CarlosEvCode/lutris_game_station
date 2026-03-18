@@ -56,14 +56,6 @@ jobs:
       - name: Instalar dependencias de Flutter
         run: flutter pub get
 
-      - name: Crear archivo .env desde secrets
-        run: |
-          cat << EOF > .env
-          SS_DEV_ID=${{ secrets.SS_DEV_ID }}
-          SS_DEV_PASSWORD=${{ secrets.SS_DEV_PASSWORD }}
-          SS_SOFT_NAME=${{ secrets.SS_SOFT_NAME }}
-          EOF
-
       - name: Extraer versión del Tag
         run: |
           TAG="${{ needs.release-please.outputs.tag_name }}"
@@ -72,8 +64,10 @@ jobs:
 
       - name: Compilar para Linux (Release)
         run: |
-          # Usamos el mismo ID de aplicación que en el código C++
-          flutter build linux --release --build-name=$APP_VERSION
+          flutter build linux --release --build-name=$APP_VERSION \
+            --dart-define=SS_DEV_ID=${{ secrets.SS_DEV_ID }} \
+            --dart-define=SS_DEV_PASSWORD=${{ secrets.SS_DEV_PASSWORD }} \
+            --dart-define=SS_SOFT_NAME=${{ secrets.SS_SOFT_NAME }}
 
       - name: Subir Bundle como Artefacto
         uses: actions/upload-artifact@v4

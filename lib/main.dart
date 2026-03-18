@@ -3,11 +3,9 @@ import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'ui/main_window.dart';
 import 'platforms/platform_registry.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
   PlatformRegistry.initialize();
   runApp(const LutrisGameStationApp());
 }
