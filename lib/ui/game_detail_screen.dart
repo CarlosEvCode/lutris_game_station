@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import '../core/lutris/games_repository.dart';
 import '../core/lutris/rom_cache_repository.dart';
@@ -99,14 +100,21 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   // Obtener la ruta del ROM desde el configPath
   String? get _romPath {
     try {
-      final configFile = File(widget.game.configPath);
+      final configFile = File(_resolveConfigFilePath(widget.game.configPath));
       if (configFile.existsSync()) {
         final content = configFile.readAsStringSync();
-        // Buscar la línea que contiene la ruta del ROM
         final lines = content.split('\n');
         for (final line in lines) {
-          if (line.trim().startsWith('path:')) {
-            return line.split(':').skip(1).join(':').trim();
+          final trimmed = line.trim();
+          if (trimmed.startsWith('main_file:') ||
+              trimmed.startsWith('path:') ||
+              trimmed.startsWith('rom:')) {
+            var value = trimmed.split(':').skip(1).join(':').trim();
+            if ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+              value = value.substring(1, value.length - 1);
+            }
+            if (value.isNotEmpty) return value;
           }
         }
       }
@@ -114,6 +122,17 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       // Ignorar errores de lectura
     }
     return null;
+  }
+
+  String _resolveConfigFilePath(String configPath) {
+    final normalized = configPath.trim();
+    if (normalized.isEmpty) return normalized;
+
+    if (normalized.endsWith('.yml') || normalized.startsWith('/')) {
+      return normalized;
+    }
+
+    return p.join(widget.lutrisPaths['config_dir_main']!, '$normalized.yml');
   }
 
   String? get _romFileName {
@@ -474,9 +493,12 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   _buildInfoRow('Extension', _romExtension!),
                 if (_romDirectory != null)
                   _buildInfoRow('Ubicacion', _romDirectory!),
-                if (_romPath != null) _buildInfoRow('Ruta completa', _romPath!),
                 _buildInfoRow('Slug', widget.game.slug),
                 _buildInfoRow('ID', widget.game.id.toString()),
+                if (_romPath != null) ...[
+                  const SizedBox(height: 6),
+                  _buildRomPathBlock(_romPath!),
+                ],
               ],
             ),
             const SizedBox(height: 10),
@@ -625,6 +647,62 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             child: Text(
               value,
               style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRomPathBlock(String fullPath) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.folder_open, size: 14, color: Colors.white60),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Ruta exacta del ROM',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Copiar ruta',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy, size: 14, color: Colors.white70),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: fullPath));
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ruta copiada al portapapeles.'),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SelectableText(
+            fullPath,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              height: 1.3,
             ),
           ),
         ],

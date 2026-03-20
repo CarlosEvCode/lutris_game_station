@@ -747,7 +747,11 @@ class _MainWindowState extends State<MainWindow> {
     if (_lutrisPaths == null) {
       return const Center(child: Text("Lutris no detectado."));
     }
-    return VisualManagerScreen(lutrisPaths: _lutrisPaths!, apiKey: _apiKey);
+    return VisualManagerScreen(
+      lutrisPaths: _lutrisPaths!,
+      apiKey: _apiKey,
+      initialPlatformId: _selectedPlatform?.platformId,
+    );
   }
 
   // ============================================================================

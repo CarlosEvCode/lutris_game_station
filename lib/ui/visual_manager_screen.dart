@@ -9,11 +9,13 @@ import 'game_detail_screen.dart';
 class VisualManagerScreen extends StatefulWidget {
   final Map<String, String?> lutrisPaths;
   final String apiKey;
+  final String? initialPlatformId;
 
   const VisualManagerScreen({
     super.key,
     required this.lutrisPaths,
     required this.apiKey,
+    this.initialPlatformId,
   });
 
   @override
@@ -65,6 +67,24 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
       _imageVersion++;
       _refreshList();
     }
+
+    if (oldWidget.initialPlatformId != widget.initialPlatformId &&
+        widget.initialPlatformId != null) {
+      final target = _platforms
+          .where((p) => p.platformId == widget.initialPlatformId)
+          .firstOrNull;
+      if (target != null &&
+          target.platformId != _selectedPlatform?.platformId) {
+        setState(() {
+          _selectedPlatform = target;
+          _games = [];
+          _page = 0;
+          _hasMore = true;
+          _selectedGameIds.clear();
+        });
+        _refreshList();
+      }
+    }
   }
 
   @override
@@ -87,7 +107,10 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     final platforms = PlatformRegistry.getAllPlatforms();
     setState(() => _platforms = platforms);
     if (platforms.isNotEmpty) {
-      setState(() => _selectedPlatform = platforms.first);
+      final preferred = platforms
+          .where((p) => p.platformId == widget.initialPlatformId)
+          .firstOrNull;
+      setState(() => _selectedPlatform = preferred ?? platforms.first);
       _refreshList();
     }
   }
