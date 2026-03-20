@@ -48,13 +48,17 @@ class GameDetailScreen extends StatefulWidget {
 
 class _GameDetailScreenState extends State<GameDetailScreen> {
   final RomCacheRepository _romCache = RomCacheRepository();
+  late final GamesRepository _gamesRepository;
   RomCacheEntry? _screenScraperInfo;
   bool _isLoading = true;
   int _imageVersion = 0;
+  late String _currentGameName;
 
   @override
   void initState() {
     super.initState();
+    _gamesRepository = GamesRepository(widget.lutrisPaths['db_path']!);
+    _currentGameName = widget.game.name;
     _loadScreenScraperInfo();
   }
 
@@ -69,7 +73,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
     try {
       // Buscar información de ScreenScraper en el cache por nombre del juego
-      final screenScraperInfo = _romCache.findByGameName(widget.game.name);
+      final screenScraperInfo = _romCache.findByGameName(_currentGameName);
 
       setState(() {
         _isLoading = false;
@@ -110,6 +114,26 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       // Ignorar errores de lectura
     }
     return null;
+  }
+
+  String? get _romFileName {
+    final fullPath = _romPath;
+    if (fullPath == null || fullPath.isEmpty) return null;
+    return p.basename(fullPath);
+  }
+
+  String? get _romExtension {
+    final fileName = _romFileName;
+    if (fileName == null || fileName.isEmpty) return null;
+    final ext = p.extension(fileName);
+    if (ext.isEmpty) return null;
+    return ext;
+  }
+
+  String? get _romDirectory {
+    final fullPath = _romPath;
+    if (fullPath == null || fullPath.isEmpty) return null;
+    return p.dirname(fullPath);
   }
 
   @override
@@ -177,7 +201,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.game.name,
+                  _currentGameName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -437,9 +461,20 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildInfoCard(
+              title: 'Correccion de juego',
+              children: [_buildEditActions()],
+            ),
+            const SizedBox(height: 10),
+            _buildInfoCard(
               title: 'Archivo y origen',
               children: [
-                if (_romPath != null) _buildInfoRow('ROM', _romPath!),
+                if (_romFileName != null)
+                  _buildInfoRow('Archivo ROM', _romFileName!),
+                if (_romExtension != null)
+                  _buildInfoRow('Extension', _romExtension!),
+                if (_romDirectory != null)
+                  _buildInfoRow('Ubicacion', _romDirectory!),
+                if (_romPath != null) _buildInfoRow('Ruta completa', _romPath!),
                 _buildInfoRow('Slug', widget.game.slug),
                 _buildInfoRow('ID', widget.game.id.toString()),
               ],
@@ -512,6 +547,30 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           ...children,
         ],
       ),
+    );
+  }
+
+  Widget _buildEditActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _correctGame,
+              icon: const Icon(Icons.manage_search, size: 16),
+              label: const Text('Corregir juego'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Abre SteamGridDB en modo busqueda para corregir coincidencia y actualizar automaticamente el nombre en Lutris al seleccionar un juego.',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+      ],
     );
   }
 
@@ -890,22 +949,18 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           ),
           const SizedBox(width: 10),
           OutlinedButton.icon(
-            onPressed: _openVisualSelector,
+            onPressed: null,
             icon: const Icon(Icons.drive_file_rename_outline, size: 16),
-            label: const Text('Editar Nombre y Media'),
+            label: const Text('Selector desde media'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white70,
-              side: const BorderSide(color: Colors.white30),
+              foregroundColor: Colors.white38,
+              side: const BorderSide(color: Colors.white24),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
         ],
       ),
     );
-  }
-
-  void _openVisualSelector() {
-    _openVisualSelectorInternal();
   }
 
   void _openVisualSelectorForType(String mediaType) {
@@ -920,9 +975,88 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       widget.apiKey,
       widget.onGameUpdated,
       initialMediaType: initialMediaType,
+      initialQuery: _currentGameName,
     );
 
     if (!mounted) return;
+
+    if (changed) {
+      await _loadScreenScraperInfo();
+      if (!mounted) return;
+      setState(() {
+        _imageVersion++;
+      });
+      widget.onGameUpdated();
+    }
+  }
+
+  Future<void> _correctGame() async {
+    final controller = TextEditingController(text: _currentGameName);
+
+    final query = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Corregir juego en SteamGridDB'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Texto de busqueda',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('Buscar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (query == null || query.isEmpty) return;
+
+    String? pendingNameFromMatch;
+
+    final changed = await SteamGridDBVisualSelector.show(
+      context,
+      widget.game,
+      widget.lutrisPaths,
+      widget.apiKey,
+      widget.onGameUpdated,
+      initialQuery: query,
+      autoSelectFirstResult: false,
+      onGameMatched: (matchedName) {
+        pendingNameFromMatch = matchedName;
+      },
+    );
+
+    if (!mounted) return;
+
+    if (changed &&
+        pendingNameFromMatch != null &&
+        pendingNameFromMatch!.isNotEmpty &&
+        pendingNameFromMatch != _currentGameName) {
+      _gamesRepository.updateGameName(widget.game.id, pendingNameFromMatch!);
+      setState(() {
+        _currentGameName = pendingNameFromMatch!;
+      });
+      widget.onGameUpdated();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Nombre corregido a "$pendingNameFromMatch".'),
+        ),
+      );
+    }
 
     if (changed) {
       await _loadScreenScraperInfo();

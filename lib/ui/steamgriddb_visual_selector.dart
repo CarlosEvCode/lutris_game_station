@@ -11,6 +11,9 @@ class SteamGridDBVisualSelector extends StatefulWidget {
   final String apiKey;
   final VoidCallback onUpdated;
   final String? initialMediaType;
+  final String? initialQuery;
+  final bool autoSelectFirstResult;
+  final ValueChanged<String>? onGameMatched;
 
   const SteamGridDBVisualSelector({
     Key? key,
@@ -19,6 +22,9 @@ class SteamGridDBVisualSelector extends StatefulWidget {
     required this.apiKey,
     required this.onUpdated,
     this.initialMediaType,
+    this.initialQuery,
+    this.autoSelectFirstResult = true,
+    this.onGameMatched,
   }) : super(key: key);
 
   static Future<bool> show(
@@ -28,6 +34,9 @@ class SteamGridDBVisualSelector extends StatefulWidget {
     String apiKey,
     VoidCallback onUpdated, {
     String? initialMediaType,
+    String? initialQuery,
+    bool autoSelectFirstResult = true,
+    ValueChanged<String>? onGameMatched,
   }) {
     if (apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -48,6 +57,9 @@ class SteamGridDBVisualSelector extends StatefulWidget {
             apiKey: apiKey,
             onUpdated: onUpdated,
             initialMediaType: initialMediaType,
+            initialQuery: initialQuery,
+            autoSelectFirstResult: autoSelectFirstResult,
+            onGameMatched: onGameMatched,
           ),
         ),
       ),
@@ -84,8 +96,13 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
     super.initState();
     _api = SteamGridDBService(apiKey: widget.apiKey);
     _tabController = TabController(length: 4, vsync: this);
-    _searchCtrl.text = widget.game.name;
-    _initialSearch();
+    _searchCtrl.text = (widget.initialQuery ?? widget.game.name).trim();
+    if (widget.autoSelectFirstResult) {
+      _initialSearch();
+    } else {
+      _search();
+      _tabController.animateTo(0);
+    }
   }
 
   void _initialSearch() async {
@@ -149,6 +166,11 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
       _banners = [];
       _icons = [];
     });
+
+    final matchedName = game['name']?.toString().trim();
+    if (matchedName != null && matchedName.isNotEmpty) {
+      widget.onGameMatched?.call(matchedName);
+    }
 
     final int gameId = game['id'];
 
