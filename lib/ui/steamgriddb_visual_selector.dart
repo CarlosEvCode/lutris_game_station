@@ -10,6 +10,7 @@ class SteamGridDBVisualSelector extends StatefulWidget {
   final Map<String, String?> lutrisPaths;
   final String apiKey;
   final VoidCallback onUpdated;
+  final String? initialMediaType;
 
   const SteamGridDBVisualSelector({
     Key? key,
@@ -17,35 +18,53 @@ class SteamGridDBVisualSelector extends StatefulWidget {
     required this.lutrisPaths,
     required this.apiKey,
     required this.onUpdated,
+    this.initialMediaType,
   }) : super(key: key);
 
-  static Future<void> show(BuildContext context, Game game, Map<String, String?> lutrisPaths, String apiKey, VoidCallback onUpdated) {
+  static Future<void> show(
+    BuildContext context,
+    Game game,
+    Map<String, String?> lutrisPaths,
+    String apiKey,
+    VoidCallback onUpdated, {
+    String? initialMediaType,
+  }) {
     if (apiKey.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Configura tu API Key primero.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configura tu API Key primero.')),
+      );
       return Future.value();
     }
-    
+
     return showDialog(
       context: context,
       builder: (ctx) => Dialog(
         child: SizedBox(
           width: 1000,
           height: 800,
-          child: SteamGridDBVisualSelector(game: game, lutrisPaths: lutrisPaths, apiKey: apiKey, onUpdated: onUpdated),
+          child: SteamGridDBVisualSelector(
+            game: game,
+            lutrisPaths: lutrisPaths,
+            apiKey: apiKey,
+            onUpdated: onUpdated,
+            initialMediaType: initialMediaType,
+          ),
         ),
       ),
     );
   }
 
   @override
-  State<SteamGridDBVisualSelector> createState() => _SteamGridDBVisualSelectorState();
+  State<SteamGridDBVisualSelector> createState() =>
+      _SteamGridDBVisualSelectorState();
 }
 
-class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> with SingleTickerProviderStateMixin {
+class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
+    with SingleTickerProviderStateMixin {
   late SteamGridDBService _api;
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
-  
+
   bool _isSearching = false;
   List<Map<String, dynamic>> _searchResults = [];
   Map<String, dynamic>? _selectedSgdbGame;
@@ -68,6 +87,19 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
     await _search();
     if (_searchResults.isNotEmpty) {
       _selectSgdbGame(_searchResults.first);
+    }
+  }
+
+  int _tabIndexForMediaType(String? mediaType) {
+    switch (mediaType) {
+      case 'cover':
+        return 1;
+      case 'banner':
+        return 2;
+      case 'icon':
+        return 3;
+      default:
+        return 1;
     }
   }
 
@@ -98,7 +130,7 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
     });
 
     final int gameId = game['id'];
-    
+
     // Fetch all types in parallel
     final results = await Future.wait([
       _api.getImages(gameId, 'cover', runner: widget.game.platform),
@@ -111,40 +143,50 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
       _banners = results[1];
       _icons = results[2];
       _isLoadingImages = false;
-      _tabController.animateTo(1); // Move to Covers tab
+      _tabController.animateTo(_tabIndexForMediaType(widget.initialMediaType));
     });
   }
 
   Future<void> _downloadAndApply(String url, String type) async {
     final slug = widget.game.slug;
     String targetPath;
-    
+
     if (type == 'cover') {
       targetPath = p.join(widget.lutrisPaths['covers_dir']!, "$slug.jpg");
     } else if (type == 'banner') {
       targetPath = p.join(widget.lutrisPaths['banners_dir']!, "$slug.jpg");
-    } else { // icon
+    } else {
+      // icon
       targetPath = p.join(widget.lutrisPaths['lutris_icons_dir']!, "$slug.png");
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Descargando $type...')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Descargando $type...')));
 
     try {
       final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) {
         final file = File(targetPath);
         await file.writeAsBytes(res.bodyBytes);
-        
+
         if (type == 'icon') {
-          final systemIconPath = p.join(widget.lutrisPaths['system_icons_dir']!, "lutris_$slug.png");
+          final systemIconPath = p.join(
+            widget.lutrisPaths['system_icons_dir']!,
+            "lutris_$slug.png",
+          );
           await file.copy(systemIconPath);
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ $type actualizado.')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('✅ $type actualizado.')));
         widget.onUpdated();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
     }
   }
 
@@ -161,9 +203,18 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
                 children: [
                   const Icon(Icons.grid_view),
                   const SizedBox(width: 12),
-                  Text('Gestor Visual para: ${widget.game.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Gestor Visual para: ${widget.game.name}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const Spacer(),
-                  IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -216,12 +267,15 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
                 onPressed: _isSearching ? null : _search,
                 icon: const Icon(Icons.search),
                 label: const Text('Buscar'),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(20)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(20),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (_isSearching) const Expanded(child: Center(child: CircularProgressIndicator())),
+          if (_isSearching)
+            const Expanded(child: Center(child: CircularProgressIndicator())),
           if (!_isSearching)
             Expanded(
               child: _searchResults.isEmpty
@@ -230,11 +284,24 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
                       itemCount: _searchResults.length,
                       itemBuilder: (context, index) {
                         final res = _searchResults[index];
-                        final isSelected = _selectedSgdbGame?['id'] == res['id'];
+                        final isSelected =
+                            _selectedSgdbGame?['id'] == res['id'];
                         return ListTile(
-                          title: Text(res['name'], style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                          title: Text(
+                            res['name'],
+                            style: TextStyle(
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
                           subtitle: Text('ID: ${res['id']}'),
-                          trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.green) : const Icon(Icons.chevron_right),
+                          trailing: isSelected
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                )
+                              : const Icon(Icons.chevron_right),
                           selected: isSelected,
                           onTap: () => _selectSgdbGame(res),
                         );
@@ -248,13 +315,17 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
 
   Widget _buildImageGrid(List<Map<String, dynamic>> images, String type) {
     if (_selectedSgdbGame == null) {
-      return const Center(child: Text('Primero selecciona un juego en la pestaña de búsqueda.'));
+      return const Center(
+        child: Text('Primero selecciona un juego en la pestaña de búsqueda.'),
+      );
     }
     if (_isLoadingImages) {
       return const Center(child: CircularProgressIndicator());
     }
     if (images.isEmpty) {
-      return const Center(child: Text('No se encontraron imágenes para este tipo.'));
+      return const Center(
+        child: Text('No se encontraron imágenes para este tipo.'),
+      );
     }
 
     double ratio = 1.0;
@@ -273,7 +344,7 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
       itemBuilder: (context, index) {
         final img = images[index];
         final thumb = img['thumb'] ?? img['url'];
-        
+
         return InkWell(
           onTap: () => _downloadAndApply(img['url'], type),
           child: Card(
@@ -297,7 +368,11 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector> w
                   child: Container(
                     color: Colors.black54,
                     padding: const EdgeInsets.all(4),
-                    child: const Icon(Icons.file_download, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.file_download,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],

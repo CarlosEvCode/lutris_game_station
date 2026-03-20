@@ -113,294 +113,459 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black87,
-      appBar: AppBar(
-        title: Text('Detalles del Juego', style: const TextStyle(fontSize: 18)),
-        backgroundColor: Colors.black87,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
+    final size = MediaQuery.of(context).size;
+    final maxWidth = size.width > 1320 ? 1240.0 : size.width * 0.96;
+    final maxHeight = size.height > 900 ? 820.0 : size.height * 0.94;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: maxWidth,
+          maxHeight: maxHeight,
+          minWidth: 320,
+          minHeight: 480,
         ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildContent(),
-    );
-  }
-
-  Widget _buildContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header con imagen de cover y información básica
-          _buildHeader(),
-
-          const SizedBox(height: 24),
-
-          // Información del juego
-          _buildGameInfo(),
-
-          const SizedBox(height: 24),
-
-          // Preview de media actual
-          _buildMediaPreview(),
-
-          const SizedBox(height: 24),
-
-          // Información de ScreenScraper (si está disponible)
-          if (_screenScraperInfo != null) ...[
-            _buildScreenScraperInfo(),
-            const SizedBox(height: 24),
-          ],
-
-          // Botones de acción
-          _buildActionButtons(),
-        ],
+        child: Material(
+          color: const Color(0xFF11151A),
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildBody(),
+              ),
+              _buildFooterActions(),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Cover image
-        Container(
-          width: 120,
-          height: 160,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white24),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: File(_coverPath).existsSync()
-                ? Image.file(
-                    File(_coverPath),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _buildPlaceholderImage('Cover', Icons.image),
-                  )
-                : _buildPlaceholderImage('Cover', Icons.image),
-          ),
+    final identified = _screenScraperInfo?.isIdentified == true;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [const Color(0xFF1B222B), const Color(0xFF141A21)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-
-        const SizedBox(width: 20),
-
-        // Game info
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Nombre del juego
-              Text(
-                widget.game.name,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Platform
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                ),
-                child: Text(
-                  widget.game.platform.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w500,
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Detalle del Juego',
+                  style: TextStyle(
+                    color: Colors.white70,
                     fontSize: 12,
+                    letterSpacing: 0.4,
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Información de ScreenScraper si está disponible
-              if (_screenScraperInfo?.isIdentified == true) ...[
-                Row(
+                const SizedBox(height: 4),
+                Text(
+                  widget.game.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    const Icon(Icons.verified, color: Colors.green, size: 16),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Identificado por ScreenScraper',
-                      style: TextStyle(color: Colors.green, fontSize: 12),
+                    _buildChip(
+                      widget.game.platform.toUpperCase(),
+                      const Color(0xFF2C7BE5),
+                    ),
+                    _buildChip(
+                      identified
+                          ? 'Identificado por ScreenScraper'
+                          : 'Sin identificacion ScreenScraper',
+                      identified ? const Color(0xFF2DA56A) : Colors.orange,
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
               ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white70),
+            tooltip: 'Cerrar (Esc)',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
 
-              // Información adicional de ScreenScraper
-              if (_screenScraperInfo?.developer != null) ...[
-                Text(
-                  'Desarrollador: ${_screenScraperInfo!.developer}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-              ],
+  Widget _buildChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.42)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 
-              if (_screenScraperInfo?.releaseDate != null) ...[
-                Text(
-                  'Fecha: ${_screenScraperInfo!.releaseDate}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
+  Widget _buildBody() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 980;
+        final isTablet = constraints.maxWidth >= 720;
+
+        if (!isTablet) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildMediaPanel(compact: true),
+                const SizedBox(height: 12),
+                _buildInfoPanel(),
               ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: isDesktop ? 6 : 5,
+                child: _buildMediaPanel(compact: !isDesktop),
+              ),
+              const SizedBox(width: 14),
+              Expanded(flex: 4, child: _buildInfoPanel()),
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildGameInfo() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Información del Archivo',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
+  Widget _buildMediaPanel({required bool compact}) {
+    final hasScraperMedia =
+        _screenScraperInfo != null &&
+        (_screenScraperInfo!.coverUrl != null ||
+            _screenScraperInfo!.bannerUrl != null ||
+            _screenScraperInfo!.cover3dUrl != null ||
+            _screenScraperInfo!.logoUrl != null);
+    final tabCount = hasScraperMedia ? 2 : 1;
 
-        // ROM path si está disponible
-        if (_romPath != null) ...[
-          _buildInfoRow('Ubicación del ROM', _romPath!),
-          const SizedBox(height: 8),
-        ],
-
-        _buildInfoRow('Slug', widget.game.slug),
-        const SizedBox(height: 8),
-
-        _buildInfoRow('ID', widget.game.id.toString()),
-
-        // Sinopsis de ScreenScraper si está disponible
-        if (_screenScraperInfo?.synopsis != null &&
-            _screenScraperInfo!.synopsis!.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          const Text(
-            'Sinopsis',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Text(
-              _screenScraperInfo!.synopsis!,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            '$label:',
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMediaPreview() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Media Actual',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        Row(
+    return _buildPanel(
+      title: 'Media',
+      child: DefaultTabController(
+        length: tabCount,
+        child: Column(
           children: [
-            // Banner
-            Expanded(
-              flex: 2,
-              child: _buildMediaItem(
-                'Banner',
-                _bannerPath,
-                widget.game.hasBanner,
-                Icons.panorama,
-                aspectRatio: 3.0,
-              ),
+            TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white60,
+              indicatorColor: const Color(0xFF4BA7FF),
+              tabs: [
+                const Tab(text: 'Actual en Lutris'),
+                if (hasScraperMedia) const Tab(text: 'ScreenScraper'),
+              ],
             ),
-
-            const SizedBox(width: 12),
-
-            // Icon
+            const SizedBox(height: 12),
             Expanded(
-              flex: 1,
-              child: _buildMediaItem(
-                'Icono',
-                _iconPath,
-                widget.game.hasIcon,
-                Icons.apps,
-                aspectRatio: 1.0,
+              child: TabBarView(
+                children: [
+                  SingleChildScrollView(
+                    child: _buildCurrentMediaContent(compact),
+                  ),
+                  if (hasScraperMedia)
+                    SingleChildScrollView(child: _buildScreenScraperInfo()),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCurrentMediaContent(bool compact) {
+    final coverExists = File(_coverPath).existsSync();
+    final bannerExists = File(_bannerPath).existsSync();
+    final iconExists = File(_iconPath).existsSync();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        compact
+            ? Column(
+                children: [
+                  _buildMediaItem(
+                    'Cover',
+                    _coverPath,
+                    Icons.image,
+                    mediaType: 'cover',
+                    aspectRatio: 0.68,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMediaItem(
+                    'Banner',
+                    _bannerPath,
+                    Icons.panorama,
+                    mediaType: 'banner',
+                    aspectRatio: 3.0,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMediaItem(
+                    'Icono',
+                    _iconPath,
+                    Icons.apps,
+                    mediaType: 'icon',
+                    aspectRatio: 1.0,
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _buildMediaItem(
+                      'Cover',
+                      _coverPath,
+                      Icons.image,
+                      mediaType: 'cover',
+                      aspectRatio: 0.68,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      children: [
+                        _buildMediaItem(
+                          'Banner',
+                          _bannerPath,
+                          Icons.panorama,
+                          mediaType: 'banner',
+                          aspectRatio: 3.0,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildMediaItem(
+                          'Icono',
+                          _iconPath,
+                          Icons.apps,
+                          mediaType: 'icon',
+                          aspectRatio: 1.0,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildStatusChip('Cover', coverExists),
+            _buildStatusChip('Banner', bannerExists),
+            _buildStatusChip('Icono', iconExists),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _buildStatusChip(String label, bool ok) {
+    final color = ok ? const Color(0xFF2DA56A) : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.16),
+        border: Border.all(color: color.withOpacity(0.42)),
+      ),
+      child: Text(
+        ok ? '$label disponible' : '$label faltante',
+        style: TextStyle(color: color, fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _buildInfoPanel() {
+    return _buildPanel(
+      title: 'Informacion',
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInfoCard(
+              title: 'Archivo y origen',
+              children: [
+                if (_romPath != null) _buildInfoRow('ROM', _romPath!),
+                _buildInfoRow('Slug', widget.game.slug),
+                _buildInfoRow('ID', widget.game.id.toString()),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _buildInfoCard(
+              title: 'ScreenScraper',
+              children: [
+                _buildInfoRow(
+                  'Estado',
+                  _screenScraperInfo?.isIdentified == true
+                      ? 'Identificado'
+                      : 'Sin datos disponibles',
+                ),
+                if (_screenScraperInfo?.developer != null)
+                  _buildInfoRow(
+                    'Desarrollador',
+                    _screenScraperInfo!.developer!,
+                  ),
+                if (_screenScraperInfo?.releaseDate != null)
+                  _buildInfoRow(
+                    'Lanzamiento',
+                    _screenScraperInfo!.releaseDate!,
+                  ),
+              ],
+            ),
+            if (_screenScraperInfo?.synopsis != null &&
+                _screenScraperInfo!.synopsis!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildInfoCard(
+                title: 'Sinopsis',
+                children: [
+                  Text(
+                    _screenScraperInfo!.synopsis!,
+                    style: const TextStyle(color: Colors.white70, height: 1.4),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.09)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPanel({required String title, required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF151B22),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: Colors.white12),
+          Expanded(
+            child: Padding(padding: const EdgeInsets.all(12), child: child),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 108,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildMediaItem(
     String label,
     String path,
-    bool exists, // Mantenemos el parámetro pero no lo usamos
     IconData fallbackIcon, {
+    required String mediaType,
     double aspectRatio = 1.0,
   }) {
     return Column(
@@ -420,18 +585,44 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24),
+              border: Border.all(color: Colors.white.withOpacity(0.15)),
+              color: Colors.black.withOpacity(0.12),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: File(path).existsSync()
-                  ? Image.file(
-                      File(path),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _buildPlaceholderImage(label, fallbackIcon),
-                    )
-                  : _buildPlaceholderImage(label, fallbackIcon),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  File(path).existsSync()
+                      ? Image.file(
+                          File(path),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildPlaceholderImage(label, fallbackIcon),
+                        )
+                      : _buildPlaceholderImage(label, fallbackIcon),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      color: Colors.black.withOpacity(0.58),
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => _openVisualSelectorForType(mediaType),
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -441,7 +632,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
   Widget _buildPlaceholderImage(String label, IconData icon) {
     return Container(
-      color: Colors.white.withOpacity(0.05),
+      color: Colors.white.withOpacity(0.04),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -463,23 +654,12 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.public, color: Colors.green, size: 20),
-            const SizedBox(width: 8),
-            const Text(
-              'Media Disponible en ScreenScraper',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
+        const Text(
+          'Media disponible en ScreenScraper',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 12),
 
-        // Preview de imágenes de ScreenScraper
         Row(
           children: [
             if (_screenScraperInfo!.coverUrl != null)
@@ -504,7 +684,6 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
         const SizedBox(height: 12),
 
-        // URLs de media disponibles
         if (_screenScraperInfo!.coverUrl != null)
           _buildMediaUrlRow('Cover (2D)', _screenScraperInfo!.coverUrl!),
         if (_screenScraperInfo!.cover3dUrl != null)
@@ -530,43 +709,51 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        Container(
-          height: 120,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.green.withOpacity(0.3)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  color: Colors.white.withOpacity(0.05),
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: Colors.white.withOpacity(0.05),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white30, size: 24),
-                      SizedBox(height: 4),
-                      Text(
-                        'Error al cargar',
-                        style: TextStyle(color: Colors.white30, fontSize: 10),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                );
-              },
+        InkWell(
+          onTap: () => _showImagePreview(imageUrl, label),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            height: 120,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: Colors.white.withOpacity(0.05),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.white.withOpacity(0.05),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.broken_image,
+                          color: Colors.white30,
+                          size: 24,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Error al cargar',
+                          style: TextStyle(color: Colors.white30, fontSize: 10),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -673,36 +860,34 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Botón principal para cambiar nombre/buscar/cambiar media
-        ElevatedButton.icon(
-          onPressed: _openVisualSelector,
-          icon: const Icon(Icons.edit),
-          label: const Text('Cambiar Nombre y Media'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+  Widget _buildFooterActions() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F141A),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Tip: usa el icono de editar en Cover/Banner/Icono para cambiar cada media.',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
           ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Botón secundario para solo cambiar media
-        OutlinedButton.icon(
-          onPressed: _openVisualSelectorDirect,
-          icon: const Icon(Icons.image),
-          label: const Text('Solo Cambiar Media'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.white70,
-            side: const BorderSide(color: Colors.white30),
-            padding: const EdgeInsets.symmetric(vertical: 16),
+          const SizedBox(width: 10),
+          OutlinedButton.icon(
+            onPressed: _openVisualSelector,
+            icon: const Icon(Icons.drive_file_rename_outline, size: 16),
+            label: const Text('Editar Nombre y Media'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white70,
+              side: const BorderSide(color: Colors.white30),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -717,9 +902,15 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  void _openVisualSelectorDirect() {
-    // Implementar una versión que vaya directo a la selección de media
-    // sin pasar por la búsqueda de nombre
-    _openVisualSelector(); // Por ahora usa el mismo flujo
+  void _openVisualSelectorForType(String mediaType) {
+    Navigator.of(context).pop();
+    SteamGridDBVisualSelector.show(
+      context,
+      widget.game,
+      widget.lutrisPaths,
+      widget.apiKey,
+      widget.onGameUpdated,
+      initialMediaType: mediaType,
+    );
   }
 }
