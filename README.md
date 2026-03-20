@@ -1,100 +1,222 @@
-# 🎮 Lutris Game Station
+# Lutris Game Station
 
-[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
-[![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.linux.org)
-[![SteamGridDB](https://img.shields.io/badge/SteamGridDB-API-blue?style=for-the-badge)](https://www.steamgriddb.com/)
+Desktop utility for Linux users who manage retro and console libraries in Lutris.
 
-**Lutris Game Station** es una herramienta avanzada y unificada diseñada específicamente para usuarios de **Lutris en Linux**. Esta aplicación combina la gestión automatizada de ROMs con una potente interfaz visual para el enriquecimiento de metadatos, permitiéndote transformar tu biblioteca de juegos en una experiencia visualmente impactante y perfectamente organizada.
+Lutris Game Station combines two workflows in one application:
 
----
+- **ROM injection**: import local ROM collections and generate Lutris entries.
+- **Visual metadata management**: apply cover art, banners, and icons from SteamGridDB, with optional high-precision identification using ScreenScraper.
 
-## ✨ Funcionalidades Principales
+## Contents
 
-### 🚀 1. Inyector Automático de ROMs
-Olvida la configuración manual de cada juego. Nuestro inyector automatiza todo el proceso:
-- **Detección de Plataformas:** Soporte nativo para múltiples sistemas (PS1, PS2, GameCube, Wii, Wii U, 3DS, MAME).
-- **Generación de Configuración:** Crea automáticamente los archivos YAML necesarios para Lutris.
-- **Limpieza Inteligente:** Opción para limpiar entradas antiguas de un runner antes de una nueva inyección, manteniendo tu base de datos libre de duplicados.
-- **Soporte Universal:** Funciona tanto con instalaciones de Lutris **Nativas** como **Flatpak**.
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Supported Platforms](#supported-platforms)
+- [How Metadata Works](#how-metadata-works)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Build with ScreenScraper Developer Credentials](#build-with-screenscraper-developer-credentials)
+- [Usage](#usage)
+- [Lutris Path Detection](#lutris-path-detection)
+- [Project Structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 
-### 🎨 2. Gestor Visual de Metadatos
-Dale vida a tu biblioteca con arte profesional directamente desde **SteamGridDB**:
-- **Búsqueda en Tiempo Real:** Filtra tus juegos instalados para encontrar exactamente el que quieres mejorar.
-- **Selector de Arte:** Interfaz intuitiva para elegir entre múltiples:
-    - **Covers:** Portadas verticales de alta calidad (600x900).
-    - **Banners:** Arte horizontal para la vista detallada.
-    - **Iconos:** Iconografía para el sistema y la barra lateral de Lutris.
-- **Caché Inteligente:** Visualiza instantáneamente los cambios gracias a nuestro sistema de refresco de imágenes.
-- **Descarga Automatizada:** Descarga masiva de metadatos durante el proceso de inyección.
+## Overview
 
-### 🤖 3. Integración con SteamGridDB
-- **Bypass de Seguridad:** Sistema robusto con rotación de User-Agents y reintentos automáticos para evitar bloqueos.
-- **Lógica Específica para Nintendo:** Salto automático de avisos legales para obtener las mejores portadas de juegos de Nintendo sin intervención manual.
+Lutris Game Station is a Flutter desktop app focused on improving the day-to-day management of large Lutris libraries.
 
----
+It reads and updates Lutris data directly (including `pga.db`, YAML game configs, and media folders), while keeping operations practical for real-world setups:
 
-## 🛠️ Tecnologías Utilizadas
+- Native Lutris installation
+- Flatpak Lutris installation
+- Mixed ROM sets with multiple file formats
+- Large metadata runs with API quota constraints
 
-- **Flutter & Dart:** Para una interfaz moderna, fluida y nativa en Linux.
-- **SQLite:** Interacción directa con la base de datos `pga.db` de Lutris.
-- **FlexColorScheme:** Estética profesional con soporte para temas claros y oscuros (optimizado para Dark Mode).
-- **Http & Parallel Processing:** Descargas rápidas y seguras de recursos visuales.
+## Key Features
 
----
+### 1) ROM injection and batch import
 
-## 🚀 Guía de Inicio Rápido
+- Scans local folders and filters files by platform extension
+- Creates Lutris-compatible game entries
+- Supports cleaning previous runner entries before re-injection
+- Handles extension priority to avoid duplicate game entries (for example, `.bin` over `.cue`)
 
-### Requisitos Previos
-1. **Lutris** instalado (Nativo o Flatpak).
-2. **Flutter SDK** (para desarrollo/compilación).
-3. **API Key de SteamGridDB:** Consíguela gratuitamente en [SteamGridDB API](https://www.steamgriddb.com/profile/api).
+### 2) SteamGridDB visual manager
 
-### Instalación
-Clona el repositorio y obtén las dependencias:
+- Search and select SteamGridDB game matches
+- Download and apply:
+  - **Cover** (portrait)
+  - **Banner** (landscape)
+  - **Icon** (square)
+- Writes assets to Lutris media folders and updates icon files for Lutris/system usage
+- Includes cache to reduce repeated API calls and improve responsiveness
+
+### 3) ScreenScraper high-precision identification
+
+- Optional hash-based identification (CRC32/MD5/SHA1)
+- Intelligent request limiting based on current quota
+- In-memory and persistent disk caching
+- Failed-lookups cache to avoid repeated expensive misses
+- Extra metadata enrichment when available (developer, release date, synopsis, media URLs)
+
+### 4) Desktop-first detail workflow
+
+- Game detail view before opening the visual selector
+- Current Lutris media preview and ScreenScraper media preview in one place
+- Per-media edit shortcuts (cover/banner/icon) to jump directly to the relevant selector tab
+
+## Supported Platforms
+
+Current platform registry includes:
+
+- Sony PlayStation (`ps1`)
+- Sony PlayStation 2 (`ps2`)
+- Nintendo GameCube (`gamecube`)
+- Nintendo Wii (`wii`)
+- Nintendo Wii U (`wii_u`)
+- Nintendo 3DS (`3ds`)
+- Arcade MAME (`mame`)
+
+Platform definitions live in `lib/platforms/platform_registry.dart`.
+
+## How Metadata Works
+
+Lutris Game Station separates responsibilities between providers:
+
+- **SteamGridDB**: primary source for downloadable visual assets used in Lutris UI.
+- **ScreenScraper**: high-precision game identification and supplemental metadata.
+
+In practice:
+
+1. You can inject/import ROMs first.
+2. If high-precision mode is enabled, the app attempts ScreenScraper identification using file hashes.
+3. SteamGridDB is used to search and apply visual art.
+4. The detail screen shows both current local media and available ScreenScraper extras when present.
+
+This keeps the visual workflow flexible while preserving accurate matching where possible.
+
+## Requirements
+
+- Linux desktop
+- Lutris (native or Flatpak)
+- Flutter SDK (for running/building from source)
+- SteamGridDB API key
+
+Optional (for high-precision mode):
+
+- ScreenScraper user credentials (`ssid` / password)
+- ScreenScraper developer credentials (`SS_DEV_ID`, `SS_DEV_PASSWORD`, `SS_SOFT_NAME`) embedded at build time
+
+## Installation
+
 ```bash
-git clone <tu-repositorio>
+git clone https://github.com/CarlosEvCode/lutris_game_station.git
 cd lutris_game_station
 flutter pub get
 ```
 
-### Ejecución
+Run in development:
+
 ```bash
-flutter run
+flutter run -d linux
 ```
 
----
+## Configuration
 
-## 📖 Cómo usar Lutris Game Station
+Use the app settings dialog to configure:
 
-1. **Configuración Inicial:** Abre el icono de engranaje (Settings) y pega tu API Key de SteamGridDB.
-2. **Auto-Inyección:**
-    - Selecciona tu plataforma (ej: Sony PlayStation 2).
-    - Busca la carpeta donde guardas tus archivos de juego.
-    - Presiona "Inyectar + Metadatos" para automatizar todo el proceso.
-3. **Gestión Visual:**
-    - Ve a la pestaña "Gestor Visual".
-    - Busca un juego específico en la barra superior.
-    - Haz clic en el icono de editar sobre cualquier juego para buscar y seleccionar manualmente nuevas portadas, banners o iconos.
+- SteamGridDB API key
+- ScreenScraper user credentials
 
----
+`API Key` is required for SteamGridDB search/download operations.
 
-## 🐧 Compatibilidad con Linux
+## Build with ScreenScraper Developer Credentials
 
-Lutris Game Station detecta automáticamente las rutas estándar de Lutris:
-- **Nativo:** `~/.local/share/lutris/`
-- **Flatpak:** `~/.var/app/net.lutris.Lutris/data/lutris/`
+ScreenScraper developer credentials are read via compile-time defines.
 
----
+Use `.env.example` as reference, then build with:
 
-## 🤝 Contribuciones
+```bash
+flutter build linux \
+  --dart-define=SS_DEV_ID=your_dev_id \
+  --dart-define=SS_DEV_PASSWORD=your_dev_password \
+  --dart-define=SS_SOFT_NAME=LutrisGameStation
+```
 
-¿Tienes una idea para una nueva plataforma o funcionalidad? ¡Las contribuciones son bienvenidas! Siente libertad de abrir un Issue o un Pull Request.
+Notes:
 
----
+- These values are consumed by `ScreenScraperService`.
+- Without developer credentials, high-precision features are limited/disabled.
+- User credentials (ssid/password) are still needed at runtime for quota/account checks.
 
-## 📄 Licencia
+## Usage
 
-Este proyecto está bajo la licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+### Basic flow
 
----
-*Desarrollado con ❤️ para la comunidad de gaming en Linux.*
+1. Open Settings and configure SteamGridDB API key.
+2. Select a platform and ROM folder.
+3. Preview detected files and run injection.
+4. Open Visual Manager to inspect/update game media.
+
+### High-precision flow (optional)
+
+1. Configure ScreenScraper user credentials in Settings.
+2. Build with developer credentials (`--dart-define`).
+3. Enable high-precision identification before batch processing.
+4. The app checks quota and warns when remaining capacity is insufficient.
+
+## Lutris Path Detection
+
+The app auto-detects and configures Lutris paths depending on installation mode.
+
+- **Native** (data): `~/.local/share/lutris/`
+- **Flatpak** (data): `~/.var/app/net.lutris.Lutris/data/lutris/`
+
+It manages distinct paths for:
+
+- database (`pga.db`)
+- covers (`coverart/`)
+- banners (`banners/`)
+- icons (`icons/`)
+- game configs (`games/` or `~/.config/lutris/games/` depending on mode)
+
+## Project Structure
+
+Key directories/files:
+
+- `lib/ui/` - desktop UI screens and dialogs
+- `lib/core/injector/` - ROM injection and batch logic
+- `lib/core/lutris/` - Lutris repository and path handling
+- `lib/core/metadata/` - SteamGridDB and ScreenScraper services/cache
+- `lib/platforms/` - platform definitions and extension rules
+
+## Troubleshooting
+
+### SteamGridDB search does not work
+
+- Verify API key in Settings.
+- Confirm internet access and API key validity.
+
+### High-precision identification unavailable
+
+- Ensure app was built with `SS_DEV_ID`, `SS_DEV_PASSWORD`, `SS_SOFT_NAME`.
+- Verify ScreenScraper user credentials in Settings.
+- Check remaining daily quota.
+
+### Media is not visible in detail view
+
+- Confirm Lutris mode/path detection is correct (native vs Flatpak).
+- Verify files exist in Lutris media folders (`coverart`, `banners`, `icons`).
+
+## Contributing
+
+Contributions are welcome.
+
+If you want to add support for another platform, improve metadata matching, or refine desktop UX:
+
+1. Open an issue describing the problem/proposal.
+2. Submit a pull request with clear scope and test steps.
+
+Please keep changes aligned with existing architecture and path-detection behavior for both native and Flatpak Lutris installations.
