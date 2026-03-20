@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.3.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.2.0...v2.3.0) (2026-03-20)
+
+
+### Features
+
+* enhance visual manager UX with detailed game information screen ([7075254](https://github.com/CarlosEvCode/lutris_game_station/commit/7075254f737fe609845d996a4585dbbcefb2d508))
+* improve detail correction flow and ROM source visibility ([e8afb5e](https://github.com/CarlosEvCode/lutris_game_station/commit/e8afb5ee652d7b1a56a696367b7248eb3e7461ae))
+* optimize ScreenScraper API usage with intelligent caching ([aaa2274](https://github.com/CarlosEvCode/lutris_game_station/commit/aaa22742ef330dc649e494d3ad5b1b06173947d0))
+* polish detail UX and sync visual manager platform context ([95ec5d7](https://github.com/CarlosEvCode/lutris_game_station/commit/95ec5d761d79d63a78c526b25ef4af51f80ef213))
+* streamline detail actions with per-media edit shortcuts ([ba4cafd](https://github.com/CarlosEvCode/lutris_game_station/commit/ba4cafde853594fda5bba18d4f881aa2e531e2e6))
+
+
+### Bug Fixes
+
+* refresh media previews after apply and keep detail open ([ad72739](https://github.com/CarlosEvCode/lutris_game_station/commit/ad72739b2ab89e85d4b4bc4e10411976f71d4165))
+
 ## [2.2.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.1.1...v2.2.0) (2026-03-18)
 
 
