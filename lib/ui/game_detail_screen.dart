@@ -50,6 +50,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   final RomCacheRepository _romCache = RomCacheRepository();
   RomCacheEntry? _screenScraperInfo;
   bool _isLoading = true;
+  int _imageVersion = 0;
 
   @override
   void initState() {
@@ -114,8 +115,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final maxWidth = size.width > 1320 ? 1240.0 : size.width * 0.96;
-    final maxHeight = size.height > 900 ? 820.0 : size.height * 0.94;
+    final maxWidth = size.width > 1320 ? 1240.0 : size.width * 0.97;
+    final maxHeight = size.height > 980 ? 920.0 : size.height * 0.97;
 
     return Center(
       child: ConstrainedBox(
@@ -259,11 +260,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                flex: isDesktop ? 6 : 5,
+                flex: isDesktop ? 7 : 5,
                 child: _buildMediaPanel(compact: !isDesktop),
               ),
               const SizedBox(width: 14),
-              Expanded(flex: 4, child: _buildInfoPanel()),
+              Expanded(flex: 3, child: _buildInfoPanel()),
             ],
           ),
         );
@@ -329,7 +330,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     _coverPath,
                     Icons.image,
                     mediaType: 'cover',
-                    aspectRatio: 0.68,
+                    aspectRatio: 0.75,
                   ),
                   const SizedBox(height: 12),
                   _buildMediaItem(
@@ -359,30 +360,41 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                       _coverPath,
                       Icons.image,
                       mediaType: 'cover',
-                      aspectRatio: 0.68,
+                      aspectRatio: 0.75,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     flex: 4,
-                    child: Column(
-                      children: [
-                        _buildMediaItem(
-                          'Banner',
-                          _bannerPath,
-                          Icons.panorama,
-                          mediaType: 'banner',
-                          aspectRatio: 3.0,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildMediaItem(
-                          'Icono',
-                          _iconPath,
-                          Icons.apps,
-                          mediaType: 'icon',
-                          aspectRatio: 1.0,
-                        ),
-                      ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final iconWidth = constraints.maxWidth > 260
+                            ? 220.0
+                            : constraints.maxWidth * 0.72;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildMediaItem(
+                              'Banner',
+                              _bannerPath,
+                              Icons.panorama,
+                              mediaType: 'banner',
+                              aspectRatio: 3.0,
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: iconWidth,
+                              child: _buildMediaItem(
+                                'Icono',
+                                _iconPath,
+                                Icons.apps,
+                                mediaType: 'icon',
+                                aspectRatio: 1.0,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -596,6 +608,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   File(path).existsSync()
                       ? Image.file(
                           File(path),
+                          key: ValueKey('$path-$_imageVersion'),
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               _buildPlaceholderImage(label, fallbackIcon),
@@ -892,25 +905,32 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   void _openVisualSelector() {
-    Navigator.of(context).pop();
-    SteamGridDBVisualSelector.show(
-      context,
-      widget.game,
-      widget.lutrisPaths,
-      widget.apiKey,
-      widget.onGameUpdated,
-    );
+    _openVisualSelectorInternal();
   }
 
   void _openVisualSelectorForType(String mediaType) {
-    Navigator.of(context).pop();
-    SteamGridDBVisualSelector.show(
+    _openVisualSelectorInternal(initialMediaType: mediaType);
+  }
+
+  Future<void> _openVisualSelectorInternal({String? initialMediaType}) async {
+    final changed = await SteamGridDBVisualSelector.show(
       context,
       widget.game,
       widget.lutrisPaths,
       widget.apiKey,
       widget.onGameUpdated,
-      initialMediaType: mediaType,
+      initialMediaType: initialMediaType,
     );
+
+    if (!mounted) return;
+
+    if (changed) {
+      await _loadScreenScraperInfo();
+      if (!mounted) return;
+      setState(() {
+        _imageVersion++;
+      });
+      widget.onGameUpdated();
+    }
   }
 }

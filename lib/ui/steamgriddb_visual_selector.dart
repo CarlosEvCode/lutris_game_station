@@ -21,7 +21,7 @@ class SteamGridDBVisualSelector extends StatefulWidget {
     this.initialMediaType,
   }) : super(key: key);
 
-  static Future<void> show(
+  static Future<bool> show(
     BuildContext context,
     Game game,
     Map<String, String?> lutrisPaths,
@@ -33,10 +33,10 @@ class SteamGridDBVisualSelector extends StatefulWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Configura tu API Key primero.')),
       );
-      return Future.value();
+      return Future.value(false);
     }
 
-    return showDialog(
+    return showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
         child: SizedBox(
@@ -51,7 +51,7 @@ class SteamGridDBVisualSelector extends StatefulWidget {
           ),
         ),
       ),
-    );
+    ).then((value) => value ?? false);
   }
 
   @override
@@ -70,9 +70,14 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
   Map<String, dynamic>? _selectedSgdbGame;
 
   bool _isLoadingImages = false;
+  bool _isApplying = false;
+  bool _hasAppliedChanges = false;
   List<Map<String, dynamic>> _covers = [];
   List<Map<String, dynamic>> _banners = [];
   List<Map<String, dynamic>> _icons = [];
+  String? _statusMessage;
+  Color _statusColor = Colors.blue;
+  IconData _statusIcon = Icons.info_outline;
 
   @override
   void initState() {
@@ -101,6 +106,22 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
       default:
         return 1;
     }
+  }
+
+  void _setStatus(String message, Color color, IconData icon) {
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = message;
+      _statusColor = color;
+      _statusIcon = icon;
+    });
+  }
+
+  Future<void> _evictFileFromImageCache(String filePath) async {
+    final file = File(filePath);
+    if (!file.existsSync()) return;
+    final provider = FileImage(file);
+    await provider.evict();
   }
 
   Future<void> _search() async {
@@ -148,6 +169,8 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
   }
 
   Future<void> _downloadAndApply(String url, String type) async {
+    if (_isApplying) return;
+
     final slug = widget.game.slug;
     String targetPath;
 
@@ -160,15 +183,15 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
       targetPath = p.join(widget.lutrisPaths['lutris_icons_dir']!, "$slug.png");
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Descargando $type...')));
+    setState(() => _isApplying = true);
+    _setStatus('Descargando y aplicando $type...', Colors.blue, Icons.download);
 
     try {
       final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) {
         final file = File(targetPath);
         await file.writeAsBytes(res.bodyBytes);
+        await _evictFileFromImageCache(targetPath);
 
         if (type == 'icon') {
           final systemIconPath = p.join(
@@ -176,17 +199,34 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
             "lutris_$slug.png",
           );
           await file.copy(systemIconPath);
+          await _evictFileFromImageCache(systemIconPath);
         }
+
+        _hasAppliedChanges = true;
+        _setStatus(
+          '${type[0].toUpperCase()}${type.substring(1)} aplicado correctamente en Lutris.',
+          Colors.green,
+          Icons.check_circle,
+        );
 
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('✅ $type actualizado.')));
         widget.onUpdated();
+      } else {
+        _setStatus(
+          'No se pudo descargar $type (HTTP ${res.statusCode}).',
+          Colors.red,
+          Icons.error_outline,
+        );
       }
     } catch (e) {
+      _setStatus('Error aplicando $type: $e', Colors.red, Icons.error_outline);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
+    } finally {
+      if (mounted) setState(() => _isApplying = false);
     }
   }
 
@@ -212,7 +252,7 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
                   ),
                   const Spacer(),
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(context, _hasAppliedChanges),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -227,6 +267,37 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
                   Tab(text: '4. Iconos', icon: Icon(Icons.blur_on)),
                 ],
               ),
+              if (_statusMessage != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _statusColor.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(_statusIcon, size: 16, color: _statusColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _statusMessage!,
+                          style: TextStyle(color: _statusColor, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (_isApplying) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(minHeight: 3),
+              ],
             ],
           ),
         ),
@@ -346,7 +417,7 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
         final thumb = img['thumb'] ?? img['url'];
 
         return InkWell(
-          onTap: () => _downloadAndApply(img['url'], type),
+          onTap: _isApplying ? null : () => _downloadAndApply(img['url'], type),
           child: Card(
             clipBehavior: Clip.antiAlias,
             elevation: 4,
