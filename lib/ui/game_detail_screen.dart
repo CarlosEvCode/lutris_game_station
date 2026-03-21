@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import '../core/lutris/games_repository.dart';
 import '../core/lutris/rom_cache_repository.dart';
+import '../core/steam/steam_export_service.dart';
 import 'steamgriddb_visual_selector.dart';
 
 /// Pantalla de detalle del juego que muestra información completa
@@ -49,6 +50,7 @@ class GameDetailScreen extends StatefulWidget {
 
 class _GameDetailScreenState extends State<GameDetailScreen> {
   final RomCacheRepository _romCache = RomCacheRepository();
+  final SteamExportService _steamExportService = SteamExportService();
   late final GamesRepository _gamesRepository;
   RomCacheEntry? _screenScraperInfo;
   bool _isLoading = true;
@@ -584,6 +586,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
               onPressed: _correctGame,
               icon: const Icon(Icons.manage_search, size: 16),
               label: const Text('Corregir juego'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _exportToSteam,
+              icon: const Icon(Icons.sports_esports, size: 16),
+              label: const Text('Exportar a Steam'),
             ),
           ],
         ),
@@ -1144,5 +1151,31 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       });
       widget.onGameUpdated();
     }
+  }
+
+  Future<void> _exportToSteam() async {
+    final gameToExport = Game(
+      id: widget.game.id,
+      slug: widget.game.slug,
+      name: _currentGameName,
+      platform: widget.game.platform,
+      configPath: widget.game.configPath,
+      hasCover: widget.game.hasCover,
+      hasBanner: widget.game.hasBanner,
+      hasIcon: widget.game.hasIcon,
+    );
+
+    final result = await _steamExportService.exportGame(
+      gameToExport,
+      widget.lutrisPaths,
+    );
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.success ? Colors.green : Colors.red,
+      ),
+    );
   }
 }
