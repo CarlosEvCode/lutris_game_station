@@ -169,6 +169,71 @@ class GamesRepository {
     }
   }
 
+  bool gameExists(int gameId) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select('SELECT 1 FROM games WHERE id = ? LIMIT 1', [
+        gameId,
+      ]);
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool isGameInRunner(int gameId, String runner) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select(
+        'SELECT 1 FROM games WHERE id = ? AND runner = ? AND installed = 1 LIMIT 1',
+        [gameId, runner],
+      );
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool isGameInPlatform(int gameId, String platformId) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select(
+        'SELECT 1 FROM games WHERE id = ? AND platform = ? AND installed = 1 LIMIT 1',
+        [gameId, platformId],
+      );
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool isGameInPlatformName(int gameId, String platformName) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select(
+        'SELECT 1 FROM games WHERE id = ? AND LOWER(platform) = LOWER(?) AND installed = 1 LIMIT 1',
+        [gameId, platformName],
+      );
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  String? getGamePlatformName(int gameId) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select(
+        'SELECT platform FROM games WHERE id = ? AND installed = 1 LIMIT 1',
+        [gameId],
+      );
+      if (rows.isEmpty) return null;
+      return rows.first['platform']?.toString();
+    } finally {
+      db.dispose();
+    }
+  }
+
   void updateGameName(int gameId, String newName) {
     final db = sqlite3.open(dbPath);
     try {

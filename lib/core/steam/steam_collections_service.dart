@@ -74,6 +74,39 @@ class SteamCollectionsService {
     file.writeAsStringSync(jsonEncode(records));
   }
 
+  Future<void> replaceCollectionApps({
+    required String namespace1Path,
+    required String collectionName,
+    required List<int> appIds,
+  }) async {
+    final file = File(namespace1Path);
+    if (!file.existsSync()) return;
+
+    final raw = file.readAsStringSync();
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return;
+
+    final records = decoded;
+    final existing = _findCollectionRecord(records, collectionName);
+    if (existing == null) return;
+
+    final metadata = existing[1] as Map<String, dynamic>;
+    final valueRaw = metadata['value']?.toString() ?? '{}';
+    final valueDecoded = jsonDecode(valueRaw);
+    if (valueDecoded is! Map<String, dynamic>) return;
+
+    valueDecoded['added'] = appIds;
+    valueDecoded['removed'] = <int>[];
+
+    metadata['timestamp'] = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    metadata['value'] = jsonEncode(valueDecoded);
+    final currentVersion =
+        int.tryParse(metadata['version']?.toString() ?? '1') ?? 1;
+    metadata['version'] = (currentVersion + 1).toString();
+
+    file.writeAsStringSync(jsonEncode(records));
+  }
+
   List<dynamic>? _findCollectionRecord(
     List<dynamic> records,
     String collectionName,

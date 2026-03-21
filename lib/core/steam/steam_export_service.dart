@@ -121,6 +121,106 @@ class SteamExportService {
     }
   }
 
+  Future<SteamPlatformSyncResult> syncPlatformToSteam({
+    required List<Game> platformGames,
+    required String platformName,
+    required Map<String, String?> lutrisPaths,
+  }) async {
+    final lp = LutrisPaths.fromMap(lutrisPaths);
+    final repo = GamesRepository(lp.dbPath);
+    final shortcutsPath = _detector.shortcutsPath();
+    final gridPath = _detector.gridPath();
+    final namespace1Path = _detector.cloudNamespace1Path();
+
+    if (shortcutsPath == null || gridPath == null) {
+      return const SteamPlatformSyncResult(
+        exportedOk: 0,
+        exportedFailed: 0,
+        removedShortcuts: 0,
+        removedArtworkEntries: 0,
+      );
+    }
+
+    var ok = 0;
+    var failed = 0;
+    for (final game in platformGames) {
+      final result = await exportGame(game, lutrisPaths);
+      if (result.success) {
+        ok++;
+      } else {
+        failed++;
+      }
+    }
+
+    final allLutrisShortcuts = await _shortcuts.listLutrisShortcuts(
+      vdfPath: shortcutsPath,
+    );
+    final targetIds = platformGames.map((g) => g.id).toSet();
+
+    bool belongsToCurrentPlatform(SteamShortcutRecord s) {
+      final gamePlatform = repo.getGamePlatformName(s.gameId);
+      if (gamePlatform == null) {
+        return false;
+      }
+      return gamePlatform.toLowerCase() == platformName.toLowerCase();
+    }
+
+    final stale = allLutrisShortcuts
+        .where(
+          (s) => belongsToCurrentPlatform(s) && !targetIds.contains(s.gameId),
+        )
+        .toList();
+
+    final staleIndexes = stale.map((s) => s.index).toList();
+    if (staleIndexes.isNotEmpty) {
+      await _shortcuts.removeShortcutsByIndex(
+        vdfPath: shortcutsPath,
+        indexes: staleIndexes,
+      );
+    }
+
+    final staleAppIds = stale
+        .map((s) {
+          if (s.appIdUnsigned > 0) return s.appIdUnsigned;
+          return _shortcuts.calculateNonSteamAppId(s.exe, s.appName);
+        })
+        .where((id) => id > 0)
+        .toSet()
+        .toList();
+
+    if (staleAppIds.isNotEmpty) {
+      await _artwork.removeArtworkForAppIds(
+        gridPath: gridPath,
+        appIds: staleAppIds,
+      );
+    }
+
+    final collectionName = _normalizePlatformTag(
+      platformGames.isNotEmpty ? platformGames.first.platform : platformName,
+    );
+    if (namespace1Path != null && collectionName.trim().isNotEmpty) {
+      final currentAppIds = <int>[];
+      for (final game in platformGames) {
+        final launch = _buildLaunchCommand(game, lp);
+        currentAppIds.add(
+          _artwork.calculateNonSteamAppId(launch.exe, game.name),
+        );
+      }
+      await _collections.replaceCollectionApps(
+        namespace1Path: namespace1Path,
+        collectionName: collectionName,
+        appIds: currentAppIds,
+      );
+    }
+
+    return SteamPlatformSyncResult(
+      exportedOk: ok,
+      exportedFailed: failed,
+      removedShortcuts: staleIndexes.length,
+      removedArtworkEntries: staleAppIds.length,
+    );
+  }
+
   _SteamLaunchCommand _buildLaunchCommand(Game game, LutrisPaths lutrisPaths) {
     final home = Platform.environment['HOME'] ?? '/';
     final quotedUri = "'lutris:rungameid/${game.id}'";
@@ -178,6 +278,20 @@ class SteamExportService {
     };
     return aliases[p] ?? platform;
   }
+}
+
+class SteamPlatformSyncResult {
+  final int exportedOk;
+  final int exportedFailed;
+  final int removedShortcuts;
+  final int removedArtworkEntries;
+
+  const SteamPlatformSyncResult({
+    required this.exportedOk,
+    required this.exportedFailed,
+    required this.removedShortcuts,
+    required this.removedArtworkEntries,
+  });
 }
 
 class _SteamLaunchCommand {
