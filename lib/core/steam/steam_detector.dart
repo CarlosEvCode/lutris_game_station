@@ -57,4 +57,19 @@ class SteamDetector {
     if (userId == null) return null;
     return p.join(base, 'userdata', userId, 'config', 'grid');
   }
+
+  String? cloudNamespace1Path() {
+    final base = detectSteamBasePath();
+    if (base == null) return null;
+    final userId = detectSteamUserId(base);
+    if (userId == null) return null;
+    return p.join(
+      base,
+      'userdata',
+      userId,
+      'config',
+      'cloudstorage',
+      'cloud-storage-namespace-1.json',
+    );
+  }
 }
