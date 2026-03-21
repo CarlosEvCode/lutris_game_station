@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.3.0...v2.4.0) (2026-03-21)
+
+
+### Features
+
+* add Steam batch export actions with availability gating ([39aa5a1](https://github.com/CarlosEvCode/lutris_game_station/commit/39aa5a13f543ce79852058b0ba59ac9ade17662c))
+* add Steam shortcut export with Lutris URI and artwork sync ([b5a0197](https://github.com/CarlosEvCode/lutris_game_station/commit/b5a01976eaab59bca8ecf2a1d5aa47ea75d96553))
+* auto-create Steam simple collections by platform ([d616e7e](https://github.com/CarlosEvCode/lutris_game_station/commit/d616e7e0df102b5d378626536cb71415546aadc3))
+* gate Steam export by runtime dependencies and document setup ([4c9f739](https://github.com/CarlosEvCode/lutris_game_station/commit/4c9f739621251ea8d787afadb4b9ca6837ba5df6))
+
 ## [2.3.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.2.0...v2.3.0) (2026-03-20)
 
 
