@@ -243,7 +243,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
         content: Text(
           selectedOnly
               ? 'Se exportaran ${targetGames.length} juegos seleccionados a Steam.\n\nSe crearan/actualizaran shortcuts, artwork y colecciones por plataforma.'
-              : 'Se exportaran ${targetGames.length} juegos de ${_selectedPlatform!.platformName} a Steam.\n\nSe crearan/actualizaran shortcuts, artwork y colecciones por plataforma.',
+              : 'Se sincronizaran ${targetGames.length} juegos de ${_selectedPlatform!.platformName} con Steam.\n\nSe crearan/actualizaran shortcuts, artwork y colecciones por plataforma, y se eliminaran en Steam los shortcuts/media huérfanos de esta plataforma.',
         ),
         actions: [
           TextButton(
@@ -259,10 +259,13 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     );
 
     if (confirmed != true || !mounted) return;
-    await _runSteamBatchExport(targetGames);
+    await _runSteamBatchExport(targetGames, selectedOnly: selectedOnly);
   }
 
-  Future<void> _runSteamBatchExport(List<Game> games) async {
+  Future<void> _runSteamBatchExport(
+    List<Game> games, {
+    required bool selectedOnly,
+  }) async {
     var started = false;
 
     await showDialog<void>(
@@ -272,6 +275,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
         var done = 0;
         var ok = 0;
         var failed = 0;
+        var removedShortcuts = 0;
+        var removedArtwork = 0;
         String current = '';
 
         return StatefulBuilder(
@@ -279,24 +284,43 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
             if (!started) {
               started = true;
               Future.microtask(() async {
-                for (final game in games) {
+                if (!selectedOnly && _selectedPlatform != null) {
                   setLocalState(() {
-                    current = game.name;
+                    current =
+                        'Sincronizando plataforma ${_selectedPlatform!.platformName}';
                   });
-
-                  final result = await _steamExportService.exportGame(
-                    game,
-                    widget.lutrisPaths,
+                  final result = await _steamExportService.syncPlatformToSteam(
+                    platformGames: games,
+                    platformName: _selectedPlatform!.platformName,
+                    lutrisPaths: widget.lutrisPaths,
                   );
-
                   setLocalState(() {
-                    done++;
-                    if (result.success) {
-                      ok++;
-                    } else {
-                      failed++;
-                    }
+                    done = games.length;
+                    ok = result.exportedOk;
+                    failed = result.exportedFailed;
+                    removedShortcuts = result.removedShortcuts;
+                    removedArtwork = result.removedArtworkEntries;
                   });
+                } else {
+                  for (final game in games) {
+                    setLocalState(() {
+                      current = game.name;
+                    });
+
+                    final result = await _steamExportService.exportGame(
+                      game,
+                      widget.lutrisPaths,
+                    );
+
+                    setLocalState(() {
+                      done++;
+                      if (result.success) {
+                        ok++;
+                      } else {
+                        failed++;
+                      }
+                    });
+                  }
                 }
 
                 if (context.mounted) {
@@ -307,7 +331,9 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Exportacion completada. OK: $ok | Fallidos: $failed | Total: ${games.length}',
+                      selectedOnly
+                          ? 'Exportacion completada. OK: $ok | Fallidos: $failed | Total: ${games.length}'
+                          : 'Sincronizacion completada. OK: $ok | Fallidos: $failed | Eliminados: $removedShortcuts shortcuts, $removedArtwork medias',
                     ),
                     backgroundColor: failed == 0 ? Colors.green : Colors.orange,
                   ),
@@ -329,6 +355,10 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
                     Text('Procesando: $done/${games.length}'),
                     const SizedBox(height: 6),
                     Text('Correctos: $ok | Fallidos: $failed'),
+                    if (!selectedOnly)
+                      Text(
+                        'Depurados: $removedShortcuts shortcuts | $removedArtwork medias',
+                      ),
                     if (current.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       Text(

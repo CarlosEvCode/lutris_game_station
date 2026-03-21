@@ -75,6 +75,21 @@ class SteamArtworkService {
     );
   }
 
+  Future<void> removeArtworkForAppIds({
+    required String gridPath,
+    required List<int> appIds,
+  }) async {
+    for (final appId in appIds) {
+      for (final ext in ['.jpg', '.png', '.ico']) {
+        _deleteIfExists(p.join(gridPath, '${appId}p$ext'));
+        _deleteIfExists(p.join(gridPath, '${appId}_hero$ext'));
+        _deleteIfExists(p.join(gridPath, '${appId}_logo$ext'));
+        _deleteIfExists(p.join(gridPath, '${appId}_icon$ext'));
+        _deleteIfExists(p.join(gridPath, '$appId$ext'));
+      }
+    }
+  }
+
   Future<void> _writeSteamImage({
     required String? srcPath,
     required String destPath,
@@ -131,6 +146,13 @@ else:
       return result.exitCode == 0;
     } catch (_) {
       return false;
+    }
+  }
+
+  void _deleteIfExists(String path) {
+    final f = File(path);
+    if (f.existsSync()) {
+      f.deleteSync();
     }
   }
 }
