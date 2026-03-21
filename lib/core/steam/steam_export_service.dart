@@ -5,6 +5,7 @@ import '../lutris/games_repository.dart';
 import 'models/steam_export_result.dart';
 import 'models/steam_shortcut_entry.dart';
 import 'steam_artwork_service.dart';
+import 'steam_collections_service.dart';
 import 'steam_detector.dart';
 import 'steam_shortcuts_service.dart';
 
@@ -12,14 +13,17 @@ class SteamExportService {
   final SteamDetector _detector;
   final SteamShortcutsService _shortcuts;
   final SteamArtworkService _artwork;
+  final SteamCollectionsService _collections;
 
   SteamExportService({
     SteamDetector? detector,
     SteamShortcutsService? shortcuts,
     SteamArtworkService? artwork,
+    SteamCollectionsService? collections,
   }) : _detector = detector ?? SteamDetector(),
        _shortcuts = shortcuts ?? SteamShortcutsService(),
-       _artwork = artwork ?? SteamArtworkService();
+       _artwork = artwork ?? SteamArtworkService(),
+       _collections = collections ?? SteamCollectionsService();
 
   Future<SteamExportResult> exportGame(
     Game game,
@@ -64,7 +68,7 @@ class SteamExportService {
         startDir: launch.startDir,
         icon: resolvedIconPath,
         launchOptions: launch.launchOptions,
-        tags: [game.platform],
+        tags: _buildSteamTags(game.platform),
       );
 
       await _shortcuts.upsertShortcut(
@@ -88,6 +92,16 @@ class SteamExportService {
         iconPath: resolvedIconPath.isNotEmpty ? resolvedIconPath : null,
         logoPath: File(logoPath).existsSync() ? logoPath : null,
       );
+
+      final namespace1Path = _detector.cloudNamespace1Path();
+      final collectionName = _normalizePlatformTag(game.platform);
+      if (namespace1Path != null && collectionName.trim().isNotEmpty) {
+        await _collections.addAppToSimpleCollection(
+          namespace1Path: namespace1Path,
+          collectionName: collectionName,
+          appId: appId,
+        );
+      }
 
       return SteamExportResult.ok(
         'Exportado a Steam: ${game.name}',
@@ -128,6 +142,35 @@ class SteamExportService {
       return value - 0x100000000;
     }
     return value;
+  }
+
+  List<String> _buildSteamTags(String platform) {
+    final normalized = _normalizePlatformTag(platform);
+    if (normalized.trim().isEmpty) {
+      return const ['Lutris'];
+    }
+    return ['Lutris', normalized];
+  }
+
+  String _normalizePlatformTag(String platform) {
+    final p = platform.trim().toLowerCase();
+    const aliases = {
+      'sony playstation': 'PS1',
+      'ps1': 'PS1',
+      'sony playstation 2': 'PS2',
+      'ps2': 'PS2',
+      'nintendo gamecube': 'GameCube',
+      'gamecube': 'GameCube',
+      'nintendo wii': 'Wii',
+      'wii': 'Wii',
+      'nintendo wii u': 'Wii U',
+      'wii_u': 'Wii U',
+      'nintendo 3ds': '3DS',
+      '3ds': '3DS',
+      'arcade (mame)': 'MAME',
+      'mame': 'MAME',
+    };
+    return aliases[p] ?? platform;
   }
 }
 
