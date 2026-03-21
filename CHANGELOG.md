@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.4.0...v2.4.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* make Steam platform sync safe and deterministic ([8bd7c28](https://github.com/CarlosEvCode/lutris_game_station/commit/8bd7c28813a45464f6b7b4fbf86dc1c31d70ec5b))
+
 ## [2.4.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.3.0...v2.4.0) (2026-03-21)
 
 
