@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import '../core/lutris/games_repository.dart';
 import '../core/lutris/rom_cache_repository.dart';
+import '../core/steam/steam_detector.dart';
 import '../core/steam/steam_export_service.dart';
 import 'steamgriddb_visual_selector.dart';
 
@@ -54,6 +55,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   late final GamesRepository _gamesRepository;
   RomCacheEntry? _screenScraperInfo;
   bool _isLoading = true;
+  bool _isSteamAvailable = false;
   int _imageVersion = 0;
   late String _currentGameName;
 
@@ -62,7 +64,13 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     super.initState();
     _gamesRepository = GamesRepository(widget.lutrisPaths['db_path']!);
     _currentGameName = widget.game.name;
+    _isSteamAvailable = _detectSteamAvailability();
     _loadScreenScraperInfo();
+  }
+
+  bool _detectSteamAvailability() {
+    final detector = SteamDetector();
+    return detector.shortcutsPath() != null && detector.gridPath() != null;
   }
 
   @override
@@ -587,17 +595,20 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
               icon: const Icon(Icons.manage_search, size: 16),
               label: const Text('Corregir juego'),
             ),
-            OutlinedButton.icon(
-              onPressed: _exportToSteam,
-              icon: const Icon(Icons.sports_esports, size: 16),
-              label: const Text('Exportar a Steam'),
-            ),
+            if (_isSteamAvailable)
+              OutlinedButton.icon(
+                onPressed: _exportToSteam,
+                icon: const Icon(Icons.sports_esports, size: 16),
+                label: const Text('Exportar a Steam'),
+              ),
           ],
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Abre SteamGridDB en modo busqueda para corregir coincidencia y actualizar automaticamente el nombre en Lutris al seleccionar un juego.',
-          style: TextStyle(color: Colors.white54, fontSize: 12),
+        Text(
+          _isSteamAvailable
+              ? 'Abre SteamGridDB en modo busqueda para corregir coincidencia y actualizar automaticamente el nombre en Lutris al seleccionar un juego.'
+              : 'Abre SteamGridDB en modo busqueda para corregir coincidencia y actualizar automaticamente el nombre en Lutris al seleccionar un juego. Steam no detectado: se oculta exportacion.',
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
         ),
       ],
     );

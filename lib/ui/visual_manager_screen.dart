@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../core/lutris/games_repository.dart';
+import '../core/steam/steam_detector.dart';
+import '../core/steam/steam_export_service.dart';
 import '../platforms/platform_registry.dart';
 import 'game_detail_screen.dart';
 
@@ -24,6 +26,7 @@ class VisualManagerScreen extends StatefulWidget {
 
 class _VisualManagerScreenState extends State<VisualManagerScreen> {
   late GamesRepository _repo;
+  final SteamExportService _steamExportService = SteamExportService();
   List<PlatformInfo> _platforms = [];
   PlatformInfo? _selectedPlatform;
 
@@ -32,6 +35,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
 
   List<Game> _games = [];
   bool _isLoading = false;
+  bool _isSteamAvailable = false;
   bool _hasMore = true;
   bool _isGridView = true;
   bool _selectionMode = false;
@@ -55,8 +59,14 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   void initState() {
     super.initState();
     _repo = GamesRepository(widget.lutrisPaths['db_path']!);
+    _isSteamAvailable = _detectSteamAvailability();
     _scrollController.addListener(_onScroll);
     _loadPlatforms();
+  }
+
+  bool _detectSteamAvailability() {
+    final detector = SteamDetector();
+    return detector.shortcutsPath() != null && detector.gridPath() != null;
   }
 
   @override
@@ -192,6 +202,138 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   }
 
   bool _isGameSelected(Game game) => _selectedGameIds.contains(game.id);
+
+  Future<void> _confirmAndExportToSteam({required bool selectedOnly}) async {
+    if (_selectedPlatform == null) return;
+
+    final selectedGames = _games
+        .where((g) => _selectedGameIds.contains(g.id))
+        .toList();
+    final allPlatformGames = _repo.getGamesByRunner(_selectedPlatform!.runner);
+    final targetGames = selectedOnly ? selectedGames : allPlatformGames;
+
+    if (targetGames.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay juegos para exportar.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exportar a Steam'),
+        content: Text(
+          selectedOnly
+              ? 'Se exportaran ${targetGames.length} juegos seleccionados a Steam.\n\nSe crearan/actualizaran shortcuts, artwork y colecciones por plataforma.'
+              : 'Se exportaran ${targetGames.length} juegos de ${_selectedPlatform!.platformName} a Steam.\n\nSe crearan/actualizaran shortcuts, artwork y colecciones por plataforma.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Exportar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await _runSteamBatchExport(targetGames);
+  }
+
+  Future<void> _runSteamBatchExport(List<Game> games) async {
+    var started = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        var done = 0;
+        var ok = 0;
+        var failed = 0;
+        String current = '';
+
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            if (!started) {
+              started = true;
+              Future.microtask(() async {
+                for (final game in games) {
+                  setLocalState(() {
+                    current = game.name;
+                  });
+
+                  final result = await _steamExportService.exportGame(
+                    game,
+                    widget.lutrisPaths,
+                  );
+
+                  setLocalState(() {
+                    done++;
+                    if (result.success) {
+                      ok++;
+                    } else {
+                      failed++;
+                    }
+                  });
+                }
+
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+
+                if (!mounted) return;
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Exportacion completada. OK: $ok | Fallidos: $failed | Total: ${games.length}',
+                    ),
+                    backgroundColor: failed == 0 ? Colors.green : Colors.orange,
+                  ),
+                );
+              });
+            }
+
+            final progress = games.isEmpty ? 0.0 : done / games.length;
+            return AlertDialog(
+              title: const Text('Exportando a Steam...'),
+              content: SizedBox(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    LinearProgressIndicator(value: progress),
+                    const SizedBox(height: 12),
+                    Text('Procesando: $done/${games.length}'),
+                    const SizedBox(height: 6),
+                    Text('Correctos: $ok | Fallidos: $failed'),
+                    if (current.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Actual: $current',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildLibrarySummary() {
     final theme = Theme.of(context);
@@ -545,6 +687,14 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
             icon: const Icon(Icons.refresh, size: 18),
             label: const Text('Refrescar'),
           ),
+          if (_isSteamAvailable) ...[
+            const SizedBox(width: 10),
+            FilledButton.icon(
+              onPressed: () => _confirmAndExportToSteam(selectedOnly: false),
+              icon: const Icon(Icons.cloud_upload, size: 18),
+              label: const Text('Exportar plataforma a Steam'),
+            ),
+          ],
         ],
       ),
     );
@@ -1004,11 +1154,14 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
             label: const Text('Limpiar'),
           ),
           const Spacer(),
-          FilledButton.icon(
-            onPressed: _selectedGameIds.isEmpty ? null : () {},
-            icon: const Icon(Icons.palette),
-            label: const Text('Aplicar arte a seleccionados'),
-          ),
+          if (_isSteamAvailable)
+            FilledButton.icon(
+              onPressed: _selectedGameIds.isEmpty
+                  ? null
+                  : () => _confirmAndExportToSteam(selectedOnly: true),
+              icon: const Icon(Icons.cloud_upload),
+              label: const Text('Exportar seleccionados a Steam'),
+            ),
         ],
       ),
     );
