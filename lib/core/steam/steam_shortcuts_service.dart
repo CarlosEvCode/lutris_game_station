@@ -4,13 +4,21 @@ import 'dart:io';
 import 'models/steam_shortcut_entry.dart';
 
 class SteamShortcutsService {
-  Future<bool> isPythonVdfAvailable() async {
+  Future<bool> isPythonModuleAvailable(String moduleName) async {
     final result = await Process.run('python3', [
       '-c',
-      'import importlib.util; print("1" if importlib.util.find_spec("vdf") else "0")',
+      'import importlib.util; print("1" if importlib.util.find_spec("$moduleName") else "0")',
     ]);
     return result.exitCode == 0 &&
         result.stdout.toString().trim().toLowerCase() == '1';
+  }
+
+  Future<bool> isPythonVdfAvailable() async {
+    return isPythonModuleAvailable('vdf');
+  }
+
+  Future<bool> isPillowAvailable() async {
+    return isPythonModuleAvailable('PIL');
   }
 
   Future<void> upsertShortcut({

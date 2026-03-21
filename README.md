@@ -17,6 +17,7 @@ Lutris Game Station combines two workflows in one application:
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Build with ScreenScraper Developer Credentials](#build-with-screenscraper-developer-credentials)
+- [Steam Export Requirements](#steam-export-requirements)
 - [Usage](#usage)
 - [Lutris Path Detection](#lutris-path-detection)
 - [Project Structure](#project-structure)
@@ -67,6 +68,14 @@ It reads and updates Lutris data directly (including `pga.db`, YAML game configs
 - Current Lutris media preview and ScreenScraper media preview in one place
 - Per-media edit shortcuts (cover/banner/icon) to jump directly to the relevant selector tab
 
+### 5) Steam export for non-Steam shortcuts
+
+- Export single games from detail view or batch export from Visual Manager
+- Creates/updates non-Steam shortcuts using `lutris:rungameid/<id>`
+- Syncs Steam artwork slots (`cover`, `hero`, `icon`, `wide`)
+- Auto-creates and updates simple Steam collections by platform
+- Hides Steam export actions automatically when Steam or required runtime dependencies are unavailable
+
 ## Supported Platforms
 
 Current platform registry includes:
@@ -108,6 +117,12 @@ Optional (for high-precision mode):
 
 - ScreenScraper user credentials (`ssid` / password)
 - ScreenScraper developer credentials (`SS_DEV_ID`, `SS_DEV_PASSWORD`, `SS_SOFT_NAME`) embedded at build time
+
+Optional (for Steam export workflow):
+
+- Python 3 runtime
+- `vdf` Python module
+- `Pillow` (`PIL`) Python module
 
 ## Installation
 
@@ -151,6 +166,27 @@ Notes:
 - Without developer credentials, high-precision features are limited/disabled.
 - User credentials (ssid/password) are still needed at runtime for quota/account checks.
 
+## Steam Export Requirements
+
+Steam export uses runtime helpers for Steam `shortcuts.vdf` updates and artwork conversion.
+
+Required on the target system:
+
+- `python3`
+- `vdf`
+- `Pillow`
+
+Install command:
+
+```bash
+python3 -m pip install --user vdf pillow
+```
+
+Notes:
+
+- Export buttons are shown only when Steam paths and required dependencies are detected.
+- This behavior prevents partial exports on systems missing Steam or Python modules.
+
 ## Usage
 
 ### Basic flow
@@ -166,6 +202,13 @@ Notes:
 2. Build with developer credentials (`--dart-define`).
 3. Enable high-precision identification before batch processing.
 4. The app checks quota and warns when remaining capacity is insufficient.
+
+### Steam export flow (optional)
+
+1. Ensure Steam is installed and closed during export operations.
+2. Verify Python modules are installed (`vdf`, `pillow`).
+3. Export from game detail (single game) or Visual Manager (platform/selected batch).
+4. Re-open Steam and confirm shortcuts, artwork, and platform collections.
 
 ## Lutris Path Detection
 

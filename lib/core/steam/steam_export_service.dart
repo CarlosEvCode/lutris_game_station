@@ -25,6 +25,16 @@ class SteamExportService {
        _artwork = artwork ?? SteamArtworkService(),
        _collections = collections ?? SteamCollectionsService();
 
+  Future<bool> canExportToSteam() async {
+    final shortcutsPath = _detector.shortcutsPath();
+    final gridPath = _detector.gridPath();
+    if (shortcutsPath == null || gridPath == null) return false;
+
+    final hasVdf = await _shortcuts.isPythonVdfAvailable();
+    final hasPillow = await _shortcuts.isPillowAvailable();
+    return hasVdf && hasPillow;
+  }
+
   Future<SteamExportResult> exportGame(
     Game game,
     Map<String, String?> lutrisPaths,
@@ -42,6 +52,13 @@ class SteamExportService {
     if (!hasPythonVdf) {
       return SteamExportResult.error(
         'Falta dependencia python-vdf. Instala con: pip install vdf',
+      );
+    }
+
+    final hasPillow = await _shortcuts.isPillowAvailable();
+    if (!hasPillow) {
+      return SteamExportResult.error(
+        'Falta dependencia Pillow. Instala con: pip install pillow',
       );
     }
 
