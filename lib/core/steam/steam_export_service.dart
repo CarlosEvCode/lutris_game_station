@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:path/path.dart' as p;
 
 import '../lutris/games_repository.dart';
+import '../lutris/lutris_paths.dart';
 import 'models/steam_export_result.dart';
 import 'models/steam_shortcut_entry.dart';
 import 'steam_artwork_service.dart';
@@ -39,6 +39,7 @@ class SteamExportService {
     Game game,
     Map<String, String?> lutrisPaths,
   ) async {
+    final lp = LutrisPaths.fromMap(lutrisPaths);
     final shortcutsPath = _detector.shortcutsPath();
     final gridPath = _detector.gridPath();
 
@@ -63,15 +64,9 @@ class SteamExportService {
     }
 
     try {
-      final launch = _buildLaunchCommand(game, lutrisPaths);
-      final lutrisIconPath = p.join(
-        lutrisPaths['lutris_icons_dir']!,
-        '${game.slug}.png',
-      );
-      final systemIconPath = p.join(
-        lutrisPaths['system_icons_dir']!,
-        'lutris_${game.slug}.png',
-      );
+      final launch = _buildLaunchCommand(game, lp);
+      final lutrisIconPath = lp.lutrisIconPath(game.slug);
+      final systemIconPath = lp.systemIconPath(game.slug);
       final resolvedIconPath = File(lutrisIconPath).existsSync()
           ? lutrisIconPath
           : (File(systemIconPath).existsSync() ? systemIconPath : '');
@@ -94,12 +89,9 @@ class SteamExportService {
         entry: entry,
       );
 
-      final coverPath = p.join(lutrisPaths['covers_dir']!, '${game.slug}.jpg');
-      final heroPath = p.join(lutrisPaths['banners_dir']!, '${game.slug}.jpg');
-      final logoPath = p.join(
-        lutrisPaths['lutris_icons_dir']!,
-        '${game.slug}.png',
-      );
+      final coverPath = lp.coverPath(game.slug);
+      final heroPath = lp.bannerPath(game.slug);
+      final logoPath = lp.lutrisIconPath(game.slug);
 
       await _artwork.copyArtworkToGrid(
         gridPath: gridPath,
@@ -129,13 +121,10 @@ class SteamExportService {
     }
   }
 
-  _SteamLaunchCommand _buildLaunchCommand(
-    Game game,
-    Map<String, String?> lutrisPaths,
-  ) {
+  _SteamLaunchCommand _buildLaunchCommand(Game game, LutrisPaths lutrisPaths) {
     final home = Platform.environment['HOME'] ?? '/';
     final quotedUri = "'lutris:rungameid/${game.id}'";
-    final isFlatpak = (lutrisPaths['mode'] ?? '').toUpperCase() == 'FLATPAK';
+    final isFlatpak = lutrisPaths.mode.toUpperCase() == 'FLATPAK';
     if (isFlatpak) {
       return _SteamLaunchCommand(
         exe: '"/usr/bin/flatpak"',
