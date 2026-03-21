@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import '../core/lutris/games_repository.dart';
+import '../core/lutris/lutris_paths.dart';
 import '../core/lutris/rom_cache_repository.dart';
 import '../core/steam/steam_detector.dart';
 import '../core/steam/steam_export_service.dart';
@@ -53,6 +54,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   final RomCacheRepository _romCache = RomCacheRepository();
   final SteamExportService _steamExportService = SteamExportService();
   late final GamesRepository _gamesRepository;
+  late final LutrisPaths _lutrisPaths;
   RomCacheEntry? _screenScraperInfo;
   bool _isLoading = true;
   bool _isSteamAvailable = false;
@@ -62,7 +64,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _gamesRepository = GamesRepository(widget.lutrisPaths['db_path']!);
+    _lutrisPaths = LutrisPaths.fromMap(widget.lutrisPaths);
+    _gamesRepository = GamesRepository(_lutrisPaths.dbPath);
     _currentGameName = widget.game.name;
     _initSteamAvailability();
     _loadScreenScraperInfo();
@@ -108,16 +111,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   // Rutas de las imágenes del juego
-  String get _coverPath =>
-      p.join(widget.lutrisPaths['covers_dir']!, '${widget.game.slug}.jpg');
+  String get _coverPath => _lutrisPaths.coverPath(widget.game.slug);
 
-  String get _bannerPath =>
-      p.join(widget.lutrisPaths['banners_dir']!, '${widget.game.slug}.jpg');
+  String get _bannerPath => _lutrisPaths.bannerPath(widget.game.slug);
 
-  String get _iconPath => p.join(
-    widget.lutrisPaths['lutris_icons_dir']!,
-    '${widget.game.slug}.png',
-  );
+  String get _iconPath => _lutrisPaths.lutrisIconPath(widget.game.slug);
 
   // Obtener la ruta del ROM desde el configPath
   String? get _romPath {
@@ -147,14 +145,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   String _resolveConfigFilePath(String configPath) {
-    final normalized = configPath.trim();
-    if (normalized.isEmpty) return normalized;
-
-    if (normalized.endsWith('.yml') || normalized.startsWith('/')) {
-      return normalized;
-    }
-
-    return p.join(widget.lutrisPaths['config_dir_main']!, '$normalized.yml');
+    return _lutrisPaths.resolveConfigPath(configPath);
   }
 
   String? get _romFileName {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../core/lutris/games_repository.dart';
+import '../core/lutris/lutris_paths.dart';
 import '../core/steam/steam_detector.dart';
 import '../core/steam/steam_export_service.dart';
 import '../platforms/platform_registry.dart';
@@ -26,6 +27,7 @@ class VisualManagerScreen extends StatefulWidget {
 
 class _VisualManagerScreenState extends State<VisualManagerScreen> {
   late GamesRepository _repo;
+  late LutrisPaths _lutrisPaths;
   final SteamExportService _steamExportService = SteamExportService();
   List<PlatformInfo> _platforms = [];
   PlatformInfo? _selectedPlatform;
@@ -58,7 +60,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   @override
   void initState() {
     super.initState();
-    _repo = GamesRepository(widget.lutrisPaths['db_path']!);
+    _lutrisPaths = LutrisPaths.fromMap(widget.lutrisPaths);
+    _repo = GamesRepository(_lutrisPaths.dbPath);
     _initSteamAvailability();
     _scrollController.addListener(_onScroll);
     _loadPlatforms();
@@ -85,7 +88,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   void didUpdateWidget(covariant VisualManagerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lutrisPaths['db_path'] != widget.lutrisPaths['db_path']) {
-      _repo = GamesRepository(widget.lutrisPaths['db_path']!);
+      _lutrisPaths = LutrisPaths.fromMap(widget.lutrisPaths);
+      _repo = GamesRepository(_lutrisPaths.dbPath);
       _imageVersion++;
       _refreshList();
     }
@@ -161,9 +165,9 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     await Future.microtask(() {
       _repo.syncMetadataWithDisk(
         runner: _selectedPlatform!.runner,
-        coversDir: widget.lutrisPaths['covers_dir']!,
-        bannersDir: widget.lutrisPaths['banners_dir']!,
-        iconsDir: widget.lutrisPaths['system_icons_dir']!,
+        coversDir: _lutrisPaths.coversDir,
+        bannersDir: _lutrisPaths.bannersDir,
+        iconsDir: _lutrisPaths.systemIconsDir,
       );
     });
   }
@@ -1046,11 +1050,11 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     String? path;
 
     if (type == 'cover') {
-      path = "${widget.lutrisPaths['covers_dir']}${game.slug}.jpg";
+      path = _lutrisPaths.coverPath(game.slug);
     } else if (type == 'banner') {
-      path = "${widget.lutrisPaths['banners_dir']}${game.slug}.jpg";
+      path = _lutrisPaths.bannerPath(game.slug);
     } else if (type == 'icon') {
-      path = "${widget.lutrisPaths['system_icons_dir']}lutris_${game.slug}.png";
+      path = _lutrisPaths.systemIconPath(game.slug);
     }
 
     if (path != null && File(path).existsSync()) {

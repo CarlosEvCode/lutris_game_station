@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../core/lutris/games_repository.dart';
+import '../core/lutris/lutris_paths.dart';
 import '../core/metadata/steamgriddb_service.dart';
-import 'package:path/path.dart' as p;
 
 class SteamGridDBVisualSelector extends StatefulWidget {
   final Game game;
@@ -74,6 +74,7 @@ class SteamGridDBVisualSelector extends StatefulWidget {
 class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
     with SingleTickerProviderStateMixin {
   late SteamGridDBService _api;
+  late LutrisPaths _lutrisPaths;
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -94,6 +95,7 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
   @override
   void initState() {
     super.initState();
+    _lutrisPaths = LutrisPaths.fromMap(widget.lutrisPaths);
     _api = SteamGridDBService(apiKey: widget.apiKey);
     _tabController = TabController(length: 4, vsync: this);
     _searchCtrl.text = (widget.initialQuery ?? widget.game.name).trim();
@@ -197,12 +199,12 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
     String targetPath;
 
     if (type == 'cover') {
-      targetPath = p.join(widget.lutrisPaths['covers_dir']!, "$slug.jpg");
+      targetPath = _lutrisPaths.coverPath(slug);
     } else if (type == 'banner') {
-      targetPath = p.join(widget.lutrisPaths['banners_dir']!, "$slug.jpg");
+      targetPath = _lutrisPaths.bannerPath(slug);
     } else {
       // icon
-      targetPath = p.join(widget.lutrisPaths['lutris_icons_dir']!, "$slug.png");
+      targetPath = _lutrisPaths.lutrisIconPath(slug);
     }
 
     setState(() => _isApplying = true);
@@ -216,10 +218,7 @@ class _SteamGridDBVisualSelectorState extends State<SteamGridDBVisualSelector>
         await _evictFileFromImageCache(targetPath);
 
         if (type == 'icon') {
-          final systemIconPath = p.join(
-            widget.lutrisPaths['system_icons_dir']!,
-            "lutris_$slug.png",
-          );
+          final systemIconPath = _lutrisPaths.systemIconPath(slug);
           await file.copy(systemIconPath);
           await _evictFileFromImageCache(systemIconPath);
         }
