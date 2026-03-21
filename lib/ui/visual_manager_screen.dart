@@ -59,14 +59,26 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   void initState() {
     super.initState();
     _repo = GamesRepository(widget.lutrisPaths['db_path']!);
-    _isSteamAvailable = _detectSteamAvailability();
+    _initSteamAvailability();
     _scrollController.addListener(_onScroll);
     _loadPlatforms();
   }
 
-  bool _detectSteamAvailability() {
+  Future<void> _initSteamAvailability() async {
+    final available = await _detectSteamAvailability();
+    if (!mounted) return;
+    setState(() {
+      _isSteamAvailable = available;
+    });
+  }
+
+  Future<bool> _detectSteamAvailability() async {
     final detector = SteamDetector();
-    return detector.shortcutsPath() != null && detector.gridPath() != null;
+    final steamPathsOk =
+        detector.shortcutsPath() != null && detector.gridPath() != null;
+    if (!steamPathsOk) return false;
+
+    return _steamExportService.canExportToSteam();
   }
 
   @override
