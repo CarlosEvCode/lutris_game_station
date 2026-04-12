@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.4.1...v2.4.2) (2026-04-12)
+
+
+### Bug Fixes
+
+* ensure libselinux portability in AppImage by removing manual deletion ([af22f2b](https://github.com/CarlosEvCode/lutris_game_station/commit/af22f2b15fbb27bf1cd5c9b39531c2294942521f))
+* make Steam platform sync safe and deterministic ([63bb716](https://github.com/CarlosEvCode/lutris_game_station/commit/63bb716cadec386ea0452ab455e56407b4ee316c))
+
 ## [2.4.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.4.0...v2.4.1) (2026-03-21)
 
 
