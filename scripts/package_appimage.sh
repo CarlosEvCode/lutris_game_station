@@ -88,8 +88,10 @@ export DEPLOY_GTK_VERSION=3
     --plugin gtk
 
 # 9. Limpieza
-find AppDir/usr/lib -name "libselinux*" -delete || true
-find AppDir/usr/lib -name "libdbus*" -delete || true
+# Eliminamos esta sección o comentamos las líneas que borran libselinux y libdbus
+# ya que son necesarias en distribuciones minimalistas como Arch Linux.
+# find AppDir/usr/lib -name "libselinux*" -delete || true
+# find AppDir/usr/lib -name "libdbus*" -delete || true
 
 # 10. AppRun Personalizado
 cat > AppDir/AppRun <<'APP_RUN'
