@@ -140,12 +140,22 @@ flutter run -d linux
 
 ## Configuration
 
-Use the app settings dialog to configure:
+Use the app settings dialog to configure your credentials. These keys are essential for the application to fetch high-quality artwork and identify your games accurately.
 
-- SteamGridDB API key
-- ScreenScraper user credentials
+### Obtaining API Keys
 
-`API Key` is required for SteamGridDB search/download operations.
+#### 1. SteamGridDB (Required for Artwork)
+SteamGridDB is the primary source for covers, banners, and icons.
+1.  Go to [steamgriddb.com](https://www.steamgriddb.com/) and log in (typically via Steam).
+2.  Navigate to your **Profile Settings** or go directly to [steamgriddb.com/profile/api](https://www.steamgriddb.com/profile/api).
+3.  Click on **"Generate API Key"**.
+4.  Copy the key and paste it into the **Settings** dialog within Lutris Game Station.
+
+#### 2. ScreenScraper (Optional for High-Precision)
+ScreenScraper is used for hash-based identification (ensuring the "Right Game" is matched).
+1.  Register an account at [screenscraper.fr](https://www.screenscraper.fr/).
+2.  In the app's **Settings**, enter your **Username** and **Password**.
+3.  *Note:* High-precision features also require **Developer Credentials** to be embedded at build time (see the [Build section](#build-with-screenscraper-developer-credentials) below).
 
 ## Build with ScreenScraper Developer Credentials
 
@@ -168,7 +178,9 @@ Notes:
 
 ## Steam Export Requirements
 
-Steam export uses runtime helpers for Steam `shortcuts.vdf` updates and artwork conversion.
+Lutris Game Station can export your games to Steam as non-Steam shortcuts, including artwork sync and platform-based collections.
+
+> **Note:** Currently, only the **Native** installation of Steam is automatically detected and supported for export operations. Support for Steam via Flatpak is planned for future updates.
 
 Required on the target system:
 

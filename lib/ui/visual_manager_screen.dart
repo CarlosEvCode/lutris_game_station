@@ -8,6 +8,7 @@ import '../core/steam/steam_detector.dart';
 import '../core/steam/steam_export_service.dart';
 import '../platforms/platform_registry.dart';
 import 'game_detail_screen.dart';
+import 'steam_dependencies_dialog.dart';
 
 class VisualManagerScreen extends StatefulWidget {
   final Map<String, String?> lutrisPaths;
@@ -733,14 +734,23 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
             icon: const Icon(Icons.refresh, size: 18),
             label: const Text('Refrescar'),
           ),
-          if (_isSteamAvailable) ...[
-            const SizedBox(width: 10),
-            FilledButton.icon(
-              onPressed: () => _confirmAndExportToSteam(selectedOnly: false),
-              icon: const Icon(Icons.cloud_upload, size: 18),
-              label: const Text('Exportar plataforma a Steam'),
+          const SizedBox(width: 10),
+          FilledButton.icon(
+            onPressed: _isSteamAvailable
+                ? () => _confirmAndExportToSteam(selectedOnly: false)
+                : () => SteamDependenciesDialog.show(context),
+            icon: Icon(
+              Icons.cloud_upload,
+              size: 18,
+              color: _isSteamAvailable ? null : Colors.white38,
             ),
-          ],
+            label: Text(
+              'Exportar plataforma a Steam',
+              style: TextStyle(
+                color: _isSteamAvailable ? null : Colors.white38,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1200,14 +1210,23 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
             label: const Text('Limpiar'),
           ),
           const Spacer(),
-          if (_isSteamAvailable)
-            FilledButton.icon(
-              onPressed: _selectedGameIds.isEmpty
-                  ? null
-                  : () => _confirmAndExportToSteam(selectedOnly: true),
-              icon: const Icon(Icons.cloud_upload),
-              label: const Text('Exportar seleccionados a Steam'),
+          FilledButton.icon(
+            onPressed: _selectedGameIds.isEmpty
+                ? null
+                : (_isSteamAvailable
+                    ? () => _confirmAndExportToSteam(selectedOnly: true)
+                    : () => SteamDependenciesDialog.show(context)),
+            icon: Icon(
+              Icons.cloud_upload,
+              color: _isSteamAvailable ? null : Colors.white38,
             ),
+            label: Text(
+              'Exportar seleccionados a Steam',
+              style: TextStyle(
+                color: _isSteamAvailable ? null : Colors.white38,
+              ),
+            ),
+          ),
         ],
       ),
     );

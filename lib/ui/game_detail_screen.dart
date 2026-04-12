@@ -7,6 +7,7 @@ import '../core/lutris/lutris_paths.dart';
 import '../core/lutris/rom_cache_repository.dart';
 import '../core/steam/steam_detector.dart';
 import '../core/steam/steam_export_service.dart';
+import 'steam_dependencies_dialog.dart';
 import 'steamgriddb_visual_selector.dart';
 
 /// Pantalla de detalle del juego que muestra información completa
@@ -598,19 +599,29 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
               icon: const Icon(Icons.manage_search, size: 16),
               label: const Text('Corregir juego'),
             ),
-            if (_isSteamAvailable)
-              OutlinedButton.icon(
-                onPressed: _exportToSteam,
-                icon: const Icon(Icons.sports_esports, size: 16),
-                label: const Text('Exportar a Steam'),
+            OutlinedButton.icon(
+              onPressed: _isSteamAvailable
+                  ? _exportToSteam
+                  : () => SteamDependenciesDialog.show(context),
+              icon: Icon(
+                Icons.sports_esports,
+                size: 16,
+                color: _isSteamAvailable ? null : Colors.white38,
               ),
+              label: Text(
+                'Exportar a Steam',
+                style: TextStyle(
+                  color: _isSteamAvailable ? null : Colors.white38,
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           _isSteamAvailable
               ? 'Abre SteamGridDB en modo busqueda para corregir coincidencia y actualizar automaticamente el nombre en Lutris al seleccionar un juego.'
-              : 'Abre SteamGridDB en modo busqueda para corregir coincidencia y actualizar automaticamente el nombre en Lutris al seleccionar un juego. Steam no detectado: se oculta exportacion.',
+              : 'Abre SteamGridDB en modo busqueda para corregir coincidencia. Nota: Steam o sus dependencias no detectadas (haz clic en Exportar para ver requerimientos).',
           style: const TextStyle(color: Colors.white54, fontSize: 12),
         ),
       ],
