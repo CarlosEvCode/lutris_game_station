@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.4.2...v2.5.0) (2026-04-12)
+
+
+### Features
+
+* show Steam export requirements dialog instead of hiding actions ([eeb4b84](https://github.com/CarlosEvCode/lutris_game_station/commit/eeb4b84e053351827e89ab70e3165d0bcb5a050c))
+
 ## [2.4.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.4.1...v2.4.2) (2026-04-12)
 
 
