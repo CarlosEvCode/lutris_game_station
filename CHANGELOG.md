@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.6.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.5.1...v2.6.0) (2026-04-13)
+
+
+### Features
+
+* add GBA, PS Vita and enhance DS/Xbox with standalone runner support based on Lutris JSON definitions ([a04809c](https://github.com/CarlosEvCode/lutris_game_station/commit/a04809c5c41ce89658d29eca640564c161f794ab))
+* add PSP and Dreamcast platforms with multi-emulator support ([2fc7a43](https://github.com/CarlosEvCode/lutris_game_station/commit/2fc7a4378856bf0d5a9a442000b9dd109fa283c8))
+* implement multi-emulator architecture per platform and enhance visual manager compatibility ([c33974f](https://github.com/CarlosEvCode/lutris_game_station/commit/c33974fd6838ca9d4e483db413702072e7be11ce))
+
 ## [2.5.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.5.0...v2.5.1) (2026-04-13)
 
 
