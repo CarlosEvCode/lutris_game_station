@@ -32,7 +32,11 @@ fi
 [ ! -f linuxdeploy-x86_64.AppImage ] && curl -L -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
 [ ! -f linuxdeploy-plugin-gtk.sh ] && curl -L -o linuxdeploy-plugin-gtk.sh https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
 [ ! -f appimagetool-x86_64.AppImage ] && curl -L -o appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-[ ! -f runtime-x86_64 ] && curl -L -o runtime-x86_64 https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-x86_64
+
+# USAMOS EL RUNTIME ESTÁTICO (SOLUCIÓN MODERNA 2025)
+# Esto elimina la necesidad de que el usuario instale libfuse2 manualmente.
+[ ! -f runtime-x86_64 ] && curl -L -o runtime-x86_64 https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+
 chmod +x *.AppImage *.sh
 
 # 3. Estructura AppDir
