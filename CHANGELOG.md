@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.6.0...v2.7.0) (2026-04-13)
+
+
+### Features
+
+* implement ZSync update information and cleanup release assets ([f2ce9a9](https://github.com/CarlosEvCode/lutris_game_station/commit/f2ce9a948f310075b1bb4e261e2a25ccc8812bdc))
+
 ## [2.6.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.5.1...v2.6.0) (2026-04-13)
 
 
