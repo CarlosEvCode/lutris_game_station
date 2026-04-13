@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.7.1...v2.7.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* force .zsync generation using explicit -u flag in appimagetool ([a16b272](https://github.com/CarlosEvCode/lutris_game_station/commit/a16b2722c6f6d07fbe09e2b090f56d4efd393aa8))
+
 ## [2.7.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.7.0...v2.7.1) (2026-04-13)
 
 
