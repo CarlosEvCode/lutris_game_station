@@ -114,7 +114,7 @@ jobs:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             lutris_game_station-*.AppImage
-            lutris_game_station-*.AppImage.zsync
+            *.zsync
             *.tar.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

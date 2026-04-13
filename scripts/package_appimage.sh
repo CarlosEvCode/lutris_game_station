@@ -122,10 +122,20 @@ chmod +x AppDir/AppRun
 # 11. Generar AppImage final
 export ARCH=x86_64
 # Configuración para actualizaciones automáticas (ZSync)
+# La información debe estar embebida para que herramientas como GearLever la detecten
 export UPDATE_INFORMATION="gh-releases-zsync|CarlosEvCode|lutris_game_station|latest|lutris_game_station-*x86_64.AppImage.zsync"
 
+# Ejecutamos appimagetool. El flag -u es redundante si está la env var, pero ayuda a asegurar.
 ./appimagetool-x86_64.AppImage --runtime-file runtime-x86_64 AppDir "${APP_NAME}-${VERSION}-x86_64.AppImage"
 
-echo -e "${BLUE}✅ AppImage profesional generado: ${APP_NAME}-${VERSION}-x86_64.AppImage${NC}"
-echo -e "${BLUE}📦 Archivo ZSync generado para actualizaciones delta.${NC}"
+echo -e "${BLUE}✅ Contenido del directorio actual:${NC}"
+ls -lh lutris_game_station-*
+
+if [ -f "${APP_NAME}-${VERSION}-x86_64.AppImage.zsync" ]; then
+    echo -e "${BLUE}📦 Archivo ZSync confirmado: ${APP_NAME}-${VERSION}-x86_64.AppImage.zsync${NC}"
+else
+    echo -e "${RED}⚠️ Advertencia: No se encontró el archivo .zsync esperado.${NC}"
+    # Intentamos buscar cualquier .zsync generado por si el nombre varió
+    ls *.zsync 2>/dev/null || echo "No hay archivos .zsync en absoluto."
+fi
 
