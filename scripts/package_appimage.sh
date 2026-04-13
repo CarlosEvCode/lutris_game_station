@@ -119,8 +119,13 @@ exec "$HERE/usr/bin/lutris_game_station" "$@"
 APP_RUN
 chmod +x AppDir/AppRun
 
-# 11. Generar el AppImage final
+# 11. Generar AppImage final
 export ARCH=x86_64
+# Configuración para actualizaciones automáticas (ZSync)
+export UPDATE_INFORMATION="gh-releases-zsync|CarlosEvCode|lutris_game_station|latest|lutris_game_station-*x86_64.AppImage.zsync"
+
 ./appimagetool-x86_64.AppImage --runtime-file runtime-x86_64 AppDir "${APP_NAME}-${VERSION}-x86_64.AppImage"
 
 echo -e "${BLUE}✅ AppImage profesional generado: ${APP_NAME}-${VERSION}-x86_64.AppImage${NC}"
+echo -e "${BLUE}📦 Archivo ZSync generado para actualizaciones delta.${NC}"
+
