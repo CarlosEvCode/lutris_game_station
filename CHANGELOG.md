@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.5.0...v2.5.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* use static runtime in AppImage to remove libfuse2 dependency ([645f6b5](https://github.com/CarlosEvCode/lutris_game_station/commit/645f6b595dccd66b1ac3f9e894695456d3f8121e))
+
 ## [2.5.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.4.2...v2.5.0) (2026-04-12)
 
 
