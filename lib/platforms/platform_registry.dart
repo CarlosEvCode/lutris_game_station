@@ -208,6 +208,85 @@ class PlatformRegistry {
         ),
       ],
     );
+
+    _platforms['switch'] = const PlatformInfo(
+      platformId: 'switch',
+      platformName: 'Nintendo Switch',
+      screenScraperId: '157',
+      emulators: [
+        EmulatorInfo(
+          id: 'yuzu',
+          name: 'Yuzu',
+          runner: 'yuzu',
+          extensions: ['.nsp', '.xci', '.nca', '.nso'],
+          extensionPriority: ['.nsp', '.xci', '.nca', '.nso'],
+        ),
+        EmulatorInfo(
+          id: 'ryujinx',
+          name: 'Ryujinx',
+          runner: 'ryujinx',
+          extensions: ['.nsp', '.xci', '.nca', '.nso'],
+          extensionPriority: ['.nsp', '.xci', '.nca', '.nso'],
+        ),
+      ],
+    );
+
+    _platforms['ds'] = const PlatformInfo(
+      platformId: 'ds',
+      platformName: 'Nintendo DS',
+      screenScraperId: '15',
+      emulators: [
+        EmulatorInfo(
+          id: 'desmume_standalone',
+          name: 'DeSmuME (Standalone)',
+          runner: 'desmume',
+          extensions: ['.nds', '.ds'],
+          extensionPriority: ['.nds', '.ds'],
+        ),
+        EmulatorInfo(
+          id: 'melonds_standalone',
+          name: 'melonDS (Standalone)',
+          runner: 'melonds',
+          extensions: ['.nds', '.ds'],
+          extensionPriority: ['.nds', '.ds'],
+        ),
+        EmulatorInfo(
+          id: 'desmume_libretro',
+          name: 'DeSmuME (Libretro)',
+          runner: 'libretro',
+          libretroCore: 'desmume',
+          extensions: ['.nds', '.ds'],
+          extensionPriority: ['.nds', '.ds'],
+        ),
+      ],
+    );
+
+    _platforms['gba'] = PlatformInfo.single(
+      platformId: 'gba',
+      platformName: 'Nintendo Game Boy Advance',
+      runner: 'mgba',
+      extensions: ['.gba'],
+      extensionPriority: ['.gba'],
+      screenScraperId: '24',
+    );
+
+    _platforms['vita'] = PlatformInfo.single(
+      platformId: 'vita',
+      platformName: 'Sony PS Vita',
+      runner: 'vita3k',
+      extensions: ['.vpk', '.zip'],
+      extensionPriority: ['.vpk', '.zip'],
+      screenScraperId: '63',
+    );
+
+    _platforms['xbox'] = PlatformInfo.single(
+      platformId: 'xbox',
+      platformName: 'Microsoft Xbox',
+      runner: 'xemu',
+      extensions: ['.iso', '.xiso'],
+      extensionPriority: ['.iso', '.xiso'],
+      screenScraperId: '32',
+    );
   }
 
   static PlatformInfo? getPlatform(String id) {
