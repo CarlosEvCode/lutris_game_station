@@ -1,35 +1,71 @@
-class PlatformInfo {
-  final String platformId;
-  final String platformName;
-  final String runner;
+class EmulatorInfo {
+  final String id;
+  final String name; // Nombre legible (ej. "Citra", "Azahar")
+  final String runner; // ID del runner en Lutris
   final List<String> extensions;
-  final bool disableRuntime;
-  final bool hasSpecialFeatures;
-  final String? screenScraperId; // ID del sistema en ScreenScraper API
-
-  /// Extensiones ordenadas por prioridad (la primera tiene mayor prioridad)
-  /// Usado para evitar duplicados cuando hay múltiples formatos del mismo juego
-  /// Ejemplo: si hay game.bin y game.cue, se prefiere .bin
   final List<String>? extensionPriority;
+  final bool disableRuntime;
 
-  const PlatformInfo({
-    required this.platformId,
-    required this.platformName,
+  const EmulatorInfo({
+    required this.id,
+    required this.name,
     required this.runner,
     required this.extensions,
-    this.disableRuntime = true,
-    this.hasSpecialFeatures = false,
-    this.screenScraperId,
     this.extensionPriority,
+    this.disableRuntime = true,
   });
 
   /// Obtiene la prioridad de una extensión (menor número = mayor prioridad)
-  /// Retorna un número alto si la extensión no está en la lista de prioridad
   int getExtensionPriority(String extension) {
     final ext = extension.toLowerCase();
     if (extensionPriority == null) return 0;
     final index = extensionPriority!.indexOf(ext);
     return index == -1 ? extensionPriority!.length : index;
+  }
+}
+
+class PlatformInfo {
+  final String platformId;
+  final String platformName;
+  final List<EmulatorInfo> emulators;
+  final bool hasSpecialFeatures;
+  final String? screenScraperId; // ID del sistema en ScreenScraper API
+
+  const PlatformInfo({
+    required this.platformId,
+    required this.platformName,
+    required this.emulators,
+    this.hasSpecialFeatures = false,
+    this.screenScraperId,
+  });
+
+  /// Constructor de conveniencia para plataformas con un solo emulador
+  factory PlatformInfo.single({
+    required String platformId,
+    required String platformName,
+    required String runner,
+    required List<String> extensions,
+    List<String>? extensionPriority,
+    bool disableRuntime = true,
+    bool hasSpecialFeatures = false,
+    String? screenScraperId,
+  }) {
+    return PlatformInfo(
+      platformId: platformId,
+      platformName: platformName,
+      hasSpecialFeatures: hasSpecialFeatures,
+      screenScraperId: screenScraperId,
+      emulators: [
+        EmulatorInfo(
+          id: 'default',
+          name: 'Default',
+          runner: runner,
+          extensions: extensions,
+          extensionPriority: extensionPriority,
+          disableRuntime: disableRuntime,
+        ),
+      ],
+    );
   }
 }
 
@@ -39,17 +75,16 @@ class PlatformRegistry {
   static void initialize() {
     if (_platforms.isNotEmpty) return;
 
-    _platforms['ps1'] = const PlatformInfo(
+    _platforms['ps1'] = PlatformInfo.single(
       platformId: 'ps1',
       platformName: 'Sony PlayStation',
       runner: 'duckstation',
       extensions: ['.bin', '.chd', '.pbp', '.cue'],
-      // Prioridad: .bin > .chd > .pbp > .cue
-      // Si existe game.bin y game.cue, se usa .bin (el .cue es solo metadata)
       extensionPriority: ['.bin', '.chd', '.pbp', '.cue'],
       screenScraperId: '57',
     );
-    _platforms['ps2'] = const PlatformInfo(
+    
+    _platforms['ps2'] = PlatformInfo.single(
       platformId: 'ps2',
       platformName: 'Sony PlayStation 2',
       runner: 'pcsx2',
@@ -57,7 +92,8 @@ class PlatformRegistry {
       extensionPriority: ['.iso', '.chd'],
       screenScraperId: '58',
     );
-    _platforms['gamecube'] = const PlatformInfo(
+    
+    _platforms['gamecube'] = PlatformInfo.single(
       platformId: 'gamecube',
       platformName: 'Nintendo GameCube',
       runner: 'dolphin',
@@ -65,7 +101,8 @@ class PlatformRegistry {
       extensionPriority: ['.iso', '.gcz', '.rvz'],
       screenScraperId: '13',
     );
-    _platforms['wii'] = const PlatformInfo(
+    
+    _platforms['wii'] = PlatformInfo.single(
       platformId: 'wii',
       platformName: 'Nintendo Wii',
       runner: 'dolphin',
@@ -73,7 +110,8 @@ class PlatformRegistry {
       extensionPriority: ['.iso', '.wbfs', '.rvz'],
       screenScraperId: '16',
     );
-    _platforms['wii_u'] = const PlatformInfo(
+    
+    _platforms['wii_u'] = PlatformInfo.single(
       platformId: 'wii_u',
       platformName: 'Nintendo Wii U',
       runner: 'cemu',
@@ -81,7 +119,8 @@ class PlatformRegistry {
       disableRuntime: false,
       screenScraperId: '18',
     );
-    _platforms['mame'] = const PlatformInfo(
+    
+    _platforms['mame'] = PlatformInfo.single(
       platformId: 'mame',
       platformName: 'Arcade (MAME)',
       runner: 'mame',
@@ -91,13 +130,28 @@ class PlatformRegistry {
       disableRuntime: false,
       screenScraperId: '75',
     );
+
+    // Nintendo 3DS con múltiples emuladores
     _platforms['3ds'] = const PlatformInfo(
       platformId: '3ds',
       platformName: 'Nintendo 3DS',
-      runner: 'citra',
-      extensions: ['.3ds', '.cia', '.cci'],
-      extensionPriority: ['.3ds', '.cia', '.cci'],
       screenScraperId: '17',
+      emulators: [
+        EmulatorInfo(
+          id: 'azahar',
+          name: 'Azahar',
+          runner: 'azahar',
+          extensions: ['.cci'],
+          extensionPriority: ['.cci'],
+        ),
+        EmulatorInfo(
+          id: 'citra',
+          name: 'Citra',
+          runner: 'citra',
+          extensions: ['.3ds', '.cia', '.cci'],
+          extensionPriority: ['.3ds', '.cia', '.cci'],
+        ),
+      ],
     );
   }
 

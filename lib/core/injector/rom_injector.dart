@@ -9,11 +9,13 @@ import '../metadata/hash_service.dart';
 class RomInjector {
   final Map<String, String?> lutrisPaths;
   final String platformKey;
+  final String? emulatorId; // ID del emulador seleccionado
   final String romFolder;
   final List<String>? customExtensions;
   final Function(String message, double? progress)? progressCallback;
 
   late final PlatformInfo platformInfo;
+  late final EmulatorInfo emulatorInfo;
   late final String dbPath;
   late final String configDir;
   late final String runner;
@@ -26,6 +28,7 @@ class RomInjector {
   RomInjector({
     required this.lutrisPaths,
     required this.platformKey,
+    this.emulatorId,
     required this.romFolder,
     this.customExtensions,
     this.progressCallback,
@@ -34,12 +37,22 @@ class RomInjector {
     if (info == null) throw Exception("Platform not supported: $platformKey");
     platformInfo = info;
 
+    // Seleccionar el emulador (por defecto el primero si no se especifica)
+    if (emulatorId != null) {
+      emulatorInfo = platformInfo.emulators.firstWhere(
+        (e) => e.id == emulatorId,
+        orElse: () => platformInfo.emulators.first,
+      );
+    } else {
+      emulatorInfo = platformInfo.emulators.first;
+    }
+
     dbPath = lutrisPaths['db_path']!;
     configDir = lutrisPaths['config_dir_main']!;
-    runner = platformInfo.runner;
-    extensions = customExtensions ?? platformInfo.extensions;
+    runner = emulatorInfo.runner;
+    extensions = customExtensions ?? emulatorInfo.extensions;
     platformName = platformInfo.platformName;
-    disableRuntime = platformInfo.disableRuntime;
+    disableRuntime = emulatorInfo.disableRuntime;
     screenScraperId = platformInfo.screenScraperId;
     _romCache = RomCacheRepository();
   }
@@ -191,16 +204,14 @@ class RomInjector {
   }
 
   /// Filtra archivos duplicados manteniendo solo el de mayor prioridad.
-  /// Por ejemplo, si hay game.bin y game.cue, solo mantiene game.bin
   List<File> _filterDuplicatesByPriority(List<File> files) {
-    return filterDuplicatesByPriority(files, platformInfo, _log);
+    return filterDuplicatesByPriority(files, emulatorInfo, _log);
   }
 
   /// Versión estática para usar desde otros lugares (como main_window)
-  /// [logCallback] es opcional para logging
   static List<File> filterDuplicatesByPriority(
     List<File> files,
-    PlatformInfo platformInfo, [
+    EmulatorInfo emulatorInfo, [
     void Function(String message, [double? progress])? logCallback,
   ]) {
     // Agrupar archivos por nombre base (sin extensión)
@@ -224,8 +235,8 @@ class RomInjector {
         filesWithSameName.sort((a, b) {
           final extA = p.extension(a.path).toLowerCase();
           final extB = p.extension(b.path).toLowerCase();
-          final priorityA = platformInfo.getExtensionPriority(extA);
-          final priorityB = platformInfo.getExtensionPriority(extB);
+          final priorityA = emulatorInfo.getExtensionPriority(extA);
+          final priorityB = emulatorInfo.getExtensionPriority(extB);
           return priorityA.compareTo(priorityB);
         });
 
@@ -363,7 +374,7 @@ system:
       return;
     }
 
-    // Set para evitar duplicados en la misma sesión (ej: Game.chd y Game.pbp)
+    // Set para evitar duplicados en la misma sesión
     Set<String> processedSlugs = {};
 
     // Obtener juegos existentes en DB para evitar duplicados si cleanOld es false
@@ -377,7 +388,7 @@ system:
       }
     }
 
-    _log("🚀 Inyectando juegos desde: $romFolder");
+    _log("🚀 Inyectando juegos desde: $romFolder (Runner: $runner)");
 
     for (int i = 0; i < romFiles.length; i++) {
       final f = romFiles[i];
@@ -385,24 +396,19 @@ system:
       String gameName = customNames?[f.path] ?? gameSlug;
       final fullRomPath = f.path;
 
-      // --- OPTIMIZACIÓN: VALIDACIÓN PREVIA Y CACHE ---
       // Early exit si la extensión no es válida para la plataforma
       final ext = p.extension(f.path).toLowerCase();
       if (!extensions.contains(ext)) {
-        _log("⏩ Extensión no válida para $platformName: $ext");
+        _log("⏩ Extensión no válida para $platformName ($runner): $ext");
         continue;
       }
 
-      // --- OPTIMIZACIÓN: REUTILIZACIÓN DE IDENTIFICACIÓN ---
-      // Solo buscar si el usuario no ha editado el nombre manualmente
       if (useHighPrecision &&
           (customNames == null || !customNames.containsKey(fullRomPath))) {
-        // Verificar si necesitamos calcular hash o podemos usar cache
         if (_shouldCalculateHash(
           fullRomPath,
           reuseIdentification: reuseIdentification,
         )) {
-          // Obtener nombre identificado (con cache automático)
           gameName = await _getIdentifiedName(
             fullRomPath,
             gameSlug,
@@ -410,7 +416,6 @@ system:
             reuseIdentification: reuseIdentification,
           );
         } else {
-          // Usar cache existente
           final cached = _romCache.shouldProcessRom(fullRomPath);
           if (cached?.identifiedName != null) {
             gameName = cached!.identifiedName!;
@@ -418,7 +423,6 @@ system:
         }
       }
 
-      // 1. Evitar duplicados de formato en la misma carpeta
       if (processedSlugs.contains(gameSlug)) {
         _log(
           "⏩ Saltando formato duplicado: $gameSlug (${p.extension(f.path)})",
@@ -427,7 +431,6 @@ system:
       }
       processedSlugs.add(gameSlug);
 
-      // 2. Evitar duplicados con juegos ya inyectados en Lutris (si no se limpió antes)
       if (!cleanOld && existingSlugs.contains(gameSlug)) {
         _log("⏩ Juego ya existe en Lutris: $gameSlug");
         continue;
@@ -465,7 +468,7 @@ system:
     }
 
     db.dispose();
-    _romCache.dispose(); // Cerrar cache de ROM
+    _romCache.dispose();
 
     _log("🎉 ¡Inyección completa! $count juegos nuevos agregados.", 1.0);
 
@@ -474,17 +477,14 @@ system:
     }
   }
 
-  /// Obtiene estadísticas del cache de ROMs
   Map<String, dynamic> getCacheStats() {
     return _romCache.getStats();
   }
 
-  /// Limpia el cache de ROMs
   void clearCache() {
     _romCache.clearCache();
   }
 
-  /// Cierra recursos
   void dispose() {
     _romCache.dispose();
   }

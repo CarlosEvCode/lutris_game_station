@@ -109,7 +109,7 @@ This keeps the visual workflow flexible while preserving accurate matching where
 ## Requirements
 
 - Linux desktop
-- Lutris (native or Flatpak)
+- **Lutris v0.5.18+** (native or Flatpak)
 - Flutter SDK (for running/building from source)
 - SteamGridDB API key
 

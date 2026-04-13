@@ -142,6 +142,9 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     }
   }
 
+  List<String> get _selectedRunners => 
+      _selectedPlatform?.emulators.map((e) => e.runner).toList() ?? [];
+
   Future<void> _refreshList() async {
     if (_selectedPlatform == null) return;
     if (!_selectionMode) _selectedGameIds.clear();
@@ -152,8 +155,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
       _page = 0;
       _games = [];
       _hasMore = true;
-      _stats = _repo.getMediaStats(
-        _selectedPlatform!.runner,
+      _stats = _repo.getMediaStatsByRunners(
+        _selectedRunners,
         searchQuery: _searchQuery,
       );
     });
@@ -164,8 +167,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
   Future<void> _syncMetadata() async {
     if (_selectedPlatform == null) return;
     await Future.microtask(() {
-      _repo.syncMetadataWithDisk(
-        runner: _selectedPlatform!.runner,
+      _repo.syncMetadataWithDiskByRunners(
+        runners: _selectedRunners,
         coversDir: _lutrisPaths.coversDir,
         bannersDir: _lutrisPaths.bannersDir,
         iconsDir: _lutrisPaths.systemIconsDir,
@@ -180,8 +183,8 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     await Future.delayed(const Duration(milliseconds: 80));
 
     final offset = _page * _limit;
-    final fetchedGames = _repo.getGamesByRunner(
-      _selectedPlatform!.runner,
+    final fetchedGames = _repo.getGamesByRunners(
+      _selectedRunners,
       limit: _limit,
       offset: offset,
       filterMode: _filterMode != 'all' ? _filterMode : null,
@@ -226,7 +229,7 @@ class _VisualManagerScreenState extends State<VisualManagerScreen> {
     final selectedGames = _games
         .where((g) => _selectedGameIds.contains(g.id))
         .toList();
-    final allPlatformGames = _repo.getGamesByRunner(_selectedPlatform!.runner);
+    final allPlatformGames = _repo.getGamesByRunners(_selectedRunners);
     final targetGames = selectedOnly ? selectedGames : allPlatformGames;
 
     if (targetGames.isEmpty) {

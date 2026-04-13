@@ -70,16 +70,21 @@ class GamesRepository {
     }
   }
 
-  List<Game> getGamesByRunner(
-    String runner, {
+  /// Helper para generar clausula IN (?, ?, ?)
+  String _inClause(int count) => "(${List.filled(count, '?').join(', ')})";
+
+  List<Game> getGamesByRunners(
+    List<String> runners, {
     int? limit,
     int offset = 0,
     String? filterMode,
     String? searchQuery,
   }) {
+    if (runners.isEmpty) return [];
+    
     final db = sqlite3.open(dbPath);
     try {
-      String whereClause = "WHERE runner = ? AND installed = 1";
+      String whereClause = "WHERE runner IN ${_inClause(runners.length)} AND installed = 1";
 
       if (filterMode == 'missingCover') {
         whereClause +=
@@ -91,7 +96,7 @@ class GamesRepository {
         whereClause += " AND (has_custom_icon = 0 OR has_custom_icon IS NULL)";
       }
 
-      final params = <dynamic>[runner];
+      final params = <dynamic>[...runners];
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         whereClause += " AND (LOWER(name) LIKE ? OR LOWER(slug) LIKE ?)";
@@ -120,11 +125,13 @@ class GamesRepository {
     }
   }
 
-  GameMediaStats getMediaStats(String runner, {String? searchQuery}) {
+  GameMediaStats getMediaStatsByRunners(List<String> runners, {String? searchQuery}) {
+    if (runners.isEmpty) return const GameMediaStats(total: 0, missingCover: 0, missingBanner: 0, missingIcon: 0);
+
     final db = sqlite3.open(dbPath);
     try {
-      String whereClause = "WHERE runner = ? AND installed = 1";
-      final params = <dynamic>[runner];
+      String whereClause = "WHERE runner IN ${_inClause(runners.length)} AND installed = 1";
+      final params = <dynamic>[...runners];
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         whereClause += " AND (LOWER(name) LIKE ? OR LOWER(slug) LIKE ?)";
@@ -152,137 +159,19 @@ class GamesRepository {
     }
   }
 
-  int getGamesCount(String runner) {
-    final db = sqlite3.open(dbPath);
-    try {
-      final results = db.select(
-        '''
-        SELECT COUNT(*) as count 
-        FROM games 
-        WHERE runner = ? AND installed = 1
-      ''',
-        [runner],
-      );
-      return results.first['count'] as int;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  bool gameExists(int gameId) {
-    final db = sqlite3.open(dbPath);
-    try {
-      final rows = db.select('SELECT 1 FROM games WHERE id = ? LIMIT 1', [
-        gameId,
-      ]);
-      return rows.isNotEmpty;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  bool isGameInRunner(int gameId, String runner) {
-    final db = sqlite3.open(dbPath);
-    try {
-      final rows = db.select(
-        'SELECT 1 FROM games WHERE id = ? AND runner = ? AND installed = 1 LIMIT 1',
-        [gameId, runner],
-      );
-      return rows.isNotEmpty;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  bool isGameInPlatform(int gameId, String platformId) {
-    final db = sqlite3.open(dbPath);
-    try {
-      final rows = db.select(
-        'SELECT 1 FROM games WHERE id = ? AND platform = ? AND installed = 1 LIMIT 1',
-        [gameId, platformId],
-      );
-      return rows.isNotEmpty;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  bool isGameInPlatformName(int gameId, String platformName) {
-    final db = sqlite3.open(dbPath);
-    try {
-      final rows = db.select(
-        'SELECT 1 FROM games WHERE id = ? AND LOWER(platform) = LOWER(?) AND installed = 1 LIMIT 1',
-        [gameId, platformName],
-      );
-      return rows.isNotEmpty;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  String? getGamePlatformName(int gameId) {
-    final db = sqlite3.open(dbPath);
-    try {
-      final rows = db.select(
-        'SELECT platform FROM games WHERE id = ? AND installed = 1 LIMIT 1',
-        [gameId],
-      );
-      if (rows.isEmpty) return null;
-      return rows.first['platform']?.toString();
-    } finally {
-      db.dispose();
-    }
-  }
-
-  void updateGameName(int gameId, String newName) {
-    final db = sqlite3.open(dbPath);
-    try {
-      db.execute(
-        '''
-        UPDATE games
-        SET name=?, sortname=?
-        WHERE id=?
-      ''',
-        [newName, newName, gameId],
-      );
-    } finally {
-      db.dispose();
-    }
-  }
-
-  void markImagesAsCustom(int gameId, String gameName) {
-    final db = sqlite3.open(dbPath);
-    try {
-      db.execute(
-        '''
-        UPDATE games
-        SET has_custom_banner=1, 
-            has_custom_icon=1, 
-            has_custom_coverart_big=1,
-            name=?,
-            sortname=?
-        WHERE id=?
-      ''',
-        [gameName, gameName, gameId],
-      );
-    } finally {
-      db.dispose();
-    }
-  }
-
-  /// Synchronizes the DB metadata flags with the actual files on disk.
-  /// This fixes cases where the user has the images but Lutris hasn't marked them as 'custom'.
-  void syncMetadataWithDisk({
-    required String runner,
+  void syncMetadataWithDiskByRunners({
+    required List<String> runners,
     required String coversDir,
     required String bannersDir,
     required String iconsDir,
   }) {
+    if (runners.isEmpty) return;
+
     final db = sqlite3.open(dbPath);
     try {
       final results = db.select(
-        "SELECT id, slug, has_custom_coverart_big, has_custom_banner, has_custom_icon FROM games WHERE runner = ? AND installed = 1",
-        [runner],
+        "SELECT id, slug, has_custom_coverart_big, has_custom_banner, has_custom_icon FROM games WHERE runner IN ${_inClause(runners.length)} AND installed = 1",
+        [...runners],
       );
 
       for (final row in results) {
@@ -293,7 +182,6 @@ class GamesRepository {
         final hasBannerFile = File("$bannersDir$slug.jpg").existsSync();
         final hasIconFile = File("${iconsDir}lutris_$slug.png").existsSync();
 
-        // Update only if database is out of sync
         if ((hasCoverFile && row['has_custom_coverart_big'] == 0) ||
             (hasBannerFile && row['has_custom_banner'] == 0) ||
             (hasIconFile && row['has_custom_icon'] == 0)) {
@@ -314,6 +202,99 @@ class GamesRepository {
           );
         }
       }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  // Métodos antiguos mantenidos por compatibilidad si es necesario, 
+  // pero ahora llaman a los nuevos por debajo con una lista de un solo elemento.
+  List<Game> getGamesByRunner(String runner, {int? limit, int offset = 0, String? filterMode, String? searchQuery}) {
+    return getGamesByRunners([runner], limit: limit, offset: offset, filterMode: filterMode, searchQuery: searchQuery);
+  }
+
+  GameMediaStats getMediaStats(String runner, {String? searchQuery}) {
+    return getMediaStatsByRunners([runner], searchQuery: searchQuery);
+  }
+
+  void syncMetadataWithDisk({required String runner, required String coversDir, required String bannersDir, required String iconsDir}) {
+    syncMetadataWithDiskByRunners(runners: [runner], coversDir: coversDir, bannersDir: bannersDir, iconsDir: iconsDir);
+  }
+
+  int getGamesCount(String runner) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final results = db.select('SELECT COUNT(*) as count FROM games WHERE runner = ? AND installed = 1', [runner]);
+      return results.first['count'] as int;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool gameExists(int gameId) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select('SELECT 1 FROM games WHERE id = ? LIMIT 1', [gameId]);
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool isGameInRunner(int gameId, String runner) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select('SELECT 1 FROM games WHERE id = ? AND runner = ? AND installed = 1 LIMIT 1', [gameId, runner]);
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool isGameInPlatform(int gameId, String platformId) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select('SELECT 1 FROM games WHERE id = ? AND platform = ? AND installed = 1 LIMIT 1', [gameId, platformId]);
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  bool isGameInPlatformName(int gameId, String platformName) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select('SELECT 1 FROM games WHERE id = ? AND LOWER(platform) = LOWER(?) AND installed = 1 LIMIT 1', [gameId, platformName]);
+      return rows.isNotEmpty;
+    } finally {
+      db.dispose();
+    }
+  }
+
+  String? getGamePlatformName(int gameId) {
+    final db = sqlite3.open(dbPath);
+    try {
+      final rows = db.select('SELECT platform FROM games WHERE id = ? AND installed = 1 LIMIT 1', [gameId]);
+      if (rows.isEmpty) return null;
+      return rows.first['platform']?.toString();
+    } finally {
+      db.dispose();
+    }
+  }
+
+  void updateGameName(int gameId, String newName) {
+    final db = sqlite3.open(dbPath);
+    try {
+      db.execute('UPDATE games SET name=?, sortname=? WHERE id=?', [newName, newName, gameId]);
+    } finally {
+      db.dispose();
+    }
+  }
+
+  void markImagesAsCustom(int gameId, String gameName) {
+    final db = sqlite3.open(dbPath);
+    try {
+      db.execute('UPDATE games SET has_custom_banner=1, has_custom_icon=1, has_custom_coverart_big=1, name=?, sortname=? WHERE id=?', [gameName, gameName, gameId]);
     } finally {
       db.dispose();
     }
