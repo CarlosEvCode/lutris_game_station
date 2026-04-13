@@ -293,10 +293,19 @@ system:
 ''';
     } else {
       final disableRuntimeStr = disableRuntime ? "true" : "false";
+      
+      // Construir sección game dinámicamente con specialConfig
+      String gameSection = '  main_file: $romPath';
+      if (emulatorInfo.specialConfig != null) {
+        emulatorInfo.specialConfig!.forEach((key, value) {
+          gameSection += '\n  $key: $value';
+        });
+      }
+
       yamlContent =
           '''
 game:
-  main_file: $romPath
+$gameSection
 system:
   disable_runtime: $disableRuntimeStr
   prefer_system_libs: true

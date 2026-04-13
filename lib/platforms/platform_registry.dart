@@ -2,10 +2,11 @@ class EmulatorInfo {
   final String id;
   final String name; // Nombre legible (ej. "Citra", "Azahar")
   final String runner; // ID del runner en Lutris
-  final String? libretroCore; // Nuevo: Nombre del core si el runner es libretro
+  final String? libretroCore; // Nombre del core si el runner es libretro
   final List<String> extensions;
   final List<String>? extensionPriority;
   final bool disableRuntime;
+  final Map<String, dynamic>? specialConfig; // Nuevo: Configuración extra para el YAML
 
   const EmulatorInfo({
     required this.id,
@@ -15,6 +16,7 @@ class EmulatorInfo {
     this.libretroCore,
     this.extensionPriority,
     this.disableRuntime = true,
+    this.specialConfig,
   });
 
   /// Obtiene la prioridad de una extensión (menor número = mayor prioridad)
@@ -51,6 +53,7 @@ class PlatformInfo {
     bool disableRuntime = true,
     bool hasSpecialFeatures = false,
     String? screenScraperId,
+    Map<String, dynamic>? specialConfig,
   }) {
     return PlatformInfo(
       platformId: platformId,
@@ -65,6 +68,7 @@ class PlatformInfo {
           extensions: extensions,
           extensionPriority: extensionPriority,
           disableRuntime: disableRuntime,
+          specialConfig: specialConfig,
         ),
       ],
     );
@@ -84,6 +88,7 @@ class PlatformRegistry {
       extensions: ['.bin', '.chd', '.pbp', '.cue'],
       extensionPriority: ['.bin', '.chd', '.pbp', '.cue'],
       screenScraperId: '57',
+      disableRuntime: true,
     );
     
     _platforms['ps2'] = PlatformInfo.single(
@@ -93,6 +98,7 @@ class PlatformRegistry {
       extensions: ['.iso', '.chd'],
       extensionPriority: ['.iso', '.chd'],
       screenScraperId: '58',
+      disableRuntime: true,
     );
     
     _platforms['gamecube'] = PlatformInfo.single(
@@ -102,6 +108,7 @@ class PlatformRegistry {
       extensions: ['.iso', '.gcz', '.rvz'],
       extensionPriority: ['.iso', '.gcz', '.rvz'],
       screenScraperId: '13',
+      specialConfig: {'platform': '0'}, // 0 = GameCube
     );
     
     _platforms['wii'] = PlatformInfo.single(
@@ -111,14 +118,16 @@ class PlatformRegistry {
       extensions: ['.iso', '.wbfs', '.rvz'],
       extensionPriority: ['.iso', '.wbfs', '.rvz'],
       screenScraperId: '16',
+      specialConfig: {'platform': '1'}, // 1 = Wii
     );
     
     _platforms['wii_u'] = PlatformInfo.single(
       platformId: 'wii_u',
       platformName: 'Nintendo Wii U',
       runner: 'cemu',
-      extensions: ['.wud', '.wux', '.rpx'],
-      disableRuntime: false,
+      extensions: ['.wud', '.wux', '.rpx', '.wua'],
+      extensionPriority: ['.wua', '.rpx', '.wud', '.wux'],
+      disableRuntime: true,
       screenScraperId: '18',
     );
     
@@ -145,6 +154,7 @@ class PlatformRegistry {
           runner: 'azahar',
           extensions: ['.cci'],
           extensionPriority: ['.cci'],
+          disableRuntime: true,
         ),
         EmulatorInfo(
           id: 'citra',
@@ -152,6 +162,7 @@ class PlatformRegistry {
           runner: 'citra',
           extensions: ['.3ds', '.cia', '.cci'],
           extensionPriority: ['.3ds', '.cia', '.cci'],
+          disableRuntime: true,
         ),
       ],
     );
@@ -277,6 +288,7 @@ class PlatformRegistry {
       extensions: ['.vpk', '.zip'],
       extensionPriority: ['.vpk', '.zip'],
       screenScraperId: '63',
+      disableRuntime: true,
     );
 
     _platforms['xbox'] = PlatformInfo.single(
@@ -286,6 +298,7 @@ class PlatformRegistry {
       extensions: ['.iso', '.xiso'],
       extensionPriority: ['.iso', '.xiso'],
       screenScraperId: '32',
+      disableRuntime: true,
     );
   }
 
