@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.7.0...v2.7.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* ensure .zsync generation and improve release asset pattern matching ([7fec381](https://github.com/CarlosEvCode/lutris_game_station/commit/7fec38110257ebd13ecd5188bfff4f585618f7ae))
+
 ## [2.7.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.6.0...v2.7.0) (2026-04-13)
 
 
