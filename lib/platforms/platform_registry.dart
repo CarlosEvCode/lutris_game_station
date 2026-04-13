@@ -2,6 +2,7 @@ class EmulatorInfo {
   final String id;
   final String name; // Nombre legible (ej. "Citra", "Azahar")
   final String runner; // ID del runner en Lutris
+  final String? libretroCore; // Nuevo: Nombre del core si el runner es libretro
   final List<String> extensions;
   final List<String>? extensionPriority;
   final bool disableRuntime;
@@ -11,6 +12,7 @@ class EmulatorInfo {
     required this.name,
     required this.runner,
     required this.extensions,
+    this.libretroCore,
     this.extensionPriority,
     this.disableRuntime = true,
   });
@@ -150,6 +152,59 @@ class PlatformRegistry {
           runner: 'citra',
           extensions: ['.3ds', '.cia', '.cci'],
           extensionPriority: ['.3ds', '.cia', '.cci'],
+        ),
+      ],
+    );
+
+    _platforms['psp'] = const PlatformInfo(
+      platformId: 'psp',
+      platformName: 'Sony PSP',
+      screenScraperId: '61',
+      emulators: [
+        EmulatorInfo(
+          id: 'ppsspp_standalone',
+          name: 'PPSSPP (Standalone)',
+          runner: 'ppsspp',
+          extensions: ['.iso', '.cso', '.pbp'],
+          extensionPriority: ['.iso', '.cso', '.pbp'],
+        ),
+        EmulatorInfo(
+          id: 'ppsspp_libretro',
+          name: 'PPSSPP (Libretro)',
+          runner: 'libretro',
+          libretroCore: 'ppsspp',
+          extensions: ['.iso', '.cso', '.pbp'],
+          extensionPriority: ['.iso', '.cso', '.pbp'],
+        ),
+      ],
+    );
+
+    _platforms['dreamcast'] = const PlatformInfo(
+      platformId: 'dreamcast',
+      platformName: 'Sega Dreamcast',
+      screenScraperId: '23',
+      emulators: [
+        EmulatorInfo(
+          id: 'flycast',
+          name: 'Flycast (Libretro)',
+          runner: 'libretro',
+          libretroCore: 'flycast',
+          extensions: ['.chd', '.gdi', '.cdi'],
+          extensionPriority: ['.chd', '.gdi', '.cdi'],
+        ),
+        EmulatorInfo(
+          id: 'redream',
+          name: 'Redream',
+          runner: 'redream',
+          extensions: ['.chd', '.gdi', '.cdi'],
+          extensionPriority: ['.chd', '.gdi', '.cdi'],
+        ),
+        EmulatorInfo(
+          id: 'reicast',
+          name: 'Reicast',
+          runner: 'reicast',
+          extensions: ['.chd', '.gdi', '.cdi'],
+          extensionPriority: ['.chd', '.gdi', '.cdi'],
         ),
       ],
     );

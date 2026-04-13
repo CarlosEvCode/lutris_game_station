@@ -280,6 +280,17 @@ system:
   disable_runtime: ${disableRuntime.toString().toLowerCase()}
   prefer_system_libs: true
 ''';
+    } else if (runner == "libretro" && emulatorInfo.libretroCore != null) {
+      final disableRuntimeStr = disableRuntime ? "true" : "false";
+      yamlContent =
+          '''
+game:
+  core: ${emulatorInfo.libretroCore}
+  main_file: $romPath
+system:
+  disable_runtime: $disableRuntimeStr
+  prefer_system_libs: true
+''';
     } else {
       final disableRuntimeStr = disableRuntime ? "true" : "false";
       yamlContent =
