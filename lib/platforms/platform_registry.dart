@@ -34,6 +34,7 @@ class PlatformInfo {
   final List<EmulatorInfo> emulators;
   final bool hasSpecialFeatures;
   final String? screenScraperId; // ID del sistema en ScreenScraper API
+  final bool hideFromInjector; // Nuevo: Ocultar de la vista de inyección
 
   const PlatformInfo({
     required this.platformId,
@@ -41,6 +42,7 @@ class PlatformInfo {
     required this.emulators,
     this.hasSpecialFeatures = false,
     this.screenScraperId,
+    this.hideFromInjector = false,
   });
 
   /// Constructor de conveniencia para plataformas con un solo emulador
@@ -54,12 +56,14 @@ class PlatformInfo {
     bool hasSpecialFeatures = false,
     String? screenScraperId,
     Map<String, dynamic>? specialConfig,
+    bool hideFromInjector = false,
   }) {
     return PlatformInfo(
       platformId: platformId,
       platformName: platformName,
       hasSpecialFeatures: hasSpecialFeatures,
       screenScraperId: screenScraperId,
+      hideFromInjector: hideFromInjector,
       emulators: [
         EmulatorInfo(
           id: 'default',
@@ -300,6 +304,15 @@ class PlatformRegistry {
       screenScraperId: '32',
       disableRuntime: true,
     );
+
+    _platforms['windows'] = PlatformInfo.single(
+      platformId: 'windows',
+      platformName: 'Windows',
+      runner: 'wine',
+      extensions: ['.exe'],
+      screenScraperId: '1',
+      hideFromInjector: true,
+    );
   }
 
   static PlatformInfo? getPlatform(String id) {
@@ -308,5 +321,9 @@ class PlatformRegistry {
 
   static List<PlatformInfo> getAllPlatforms() {
     return _platforms.values.toList();
+  }
+
+  static List<PlatformInfo> getInjectorPlatforms() {
+    return _platforms.values.where((p) => !p.hideFromInjector).toList();
   }
 }

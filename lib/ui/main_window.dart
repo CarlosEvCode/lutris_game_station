@@ -70,7 +70,7 @@ class _MainWindowState extends State<MainWindow> {
     super.initState();
     _detectLutris();
     _loadPersistedConfig();
-    final platforms = PlatformRegistry.getAllPlatforms();
+    final platforms = PlatformRegistry.getInjectorPlatforms();
     if (platforms.isNotEmpty) {
       _onPlatformChanged(platforms.first);
     }
@@ -639,7 +639,7 @@ class _MainWindowState extends State<MainWindow> {
   }
 
   Widget _buildConfigSection() {
-    final platforms = PlatformRegistry.getAllPlatforms();
+    final platforms = PlatformRegistry.getInjectorPlatforms();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
