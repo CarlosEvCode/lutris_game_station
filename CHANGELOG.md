@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.7.2...v2.8.0) (2026-04-20)
+
+
+### Features
+
+* add Windows platform support for Visual Manager and implement selective injector visibility ([5c83690](https://github.com/CarlosEvCode/lutris_game_station/commit/5c8369081ac462dd322c5cec8a74a16ad0045a52))
+
 ## [2.7.2](https://github.com/CarlosEvCode/lutris_game_station/compare/v2.7.1...v2.7.2) (2026-04-13)
 
 
